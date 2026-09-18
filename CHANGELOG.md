@@ -10,6 +10,34 @@ root cause and the guard.
 
 ---
 
+## [Unreleased]
+
+Docs and on-repo reference for the **browser build** (a separate
+single-page snapshot of Strata Console, published as a claude.ai
+Artifact). No application behaviour changes; no Python touched, and the
+desktop shell, engine, tools and tests are untouched.
+
+### Added
+- **`strata_console_browser.html`** at the repository root — byte-for-byte
+  snapshot of the Strata Console browser Artifact. 108,563 bytes, SHA256
+  `6e99db91ef61c656b0ffe1682408764f26f7bf42f660171569e4be888b2d9241`.
+  Filed as the permanent on-repo reference alongside the Artifact link
+  and the Google Docs / OneDrive record; a diff against that hash tells
+  you whether this file still matches the published Artifact.
+- **[`docs/PROMPT_LIBRARY_BLUEPRINT.md`](docs/PROMPT_LIBRARY_BLUEPRINT.md)** —
+  v1 blueprint for the browser build's Prompt Library. Ten fixed
+  Dewey-style classes (A–J) with keyword-scored classification, one
+  record per completed pod exchange stored under `strata_promptlib_v1`
+  (400-record / 2.5 MB cap, export-then-prune at the cap), retrieval
+  labelled as past-conversation memory, and a `/promptlib` command.
+  Includes the storage-tier proposal (hot / warm / archival to Google
+  Drive), pseudocode, and the ISO/IEC/IEEE 12207 process gate. Status:
+  **BLUEPRINT — no code until owner approval.**
+- **README section "Browser build"** — points at the on-repo snapshot,
+  explains its relationship to the desktop app documented above it, and
+  names the Prompt Library as the first browser-side feature scoped
+  through the documentation gate.
+
 ## [2.2.0] — 2026-09-02
 
 The owner asked, fairly, whether the app was using too much memory and

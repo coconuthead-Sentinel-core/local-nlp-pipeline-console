@@ -1,0 +1,2701 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1"><style>:root{color-scheme:light}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Strata Console</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&display=swap">
+<style>
+/* Strata Console — browser build.
+ *
+ * The colours are the SAME measured values the desktop shell committed to
+ * in strata_tools/theme.py and strata_tools/modes.py (WCAG AA, measured,
+ * not chosen by eye). This build keeps the console's one dark visual
+ * world deliberately, and paints every colour explicitly so the page
+ * holds on any host ground. */
+
+:root {
+  --ground:   #12161A;
+  --frame:    #2B2B2B;
+  --surface:  #1D2228;
+  --ink:      #DCE4EE;
+  --ink-mute: #9AA6B2;
+  --outline:  #C0CAD5;
+  --fill:     #1A5A8C;
+  --fill-hi:  #144870;
+  --focus:    #FFFFFF;
+
+  /* Zone hues, third pass (2026-09-11). The lesson of the first two:
+     a DARKENED hue is not that hue — dark yellow reads brown, dark red
+     reads purple, on real screens and doubly under a colour overlay.
+     So no darkened hue fills remain anywhere. At rest a zone button is
+     neutral (--surface) and carries its hue at FULL saturation in a
+     solid dot and a 2px border; active, the hue takes the whole button
+     with dark text. Red is a warm vermilion — enough orange in it that
+     no display drifts it toward purple. Every pair re-measured: text
+     ≥ 4.5:1, dot/border marks ≥ 3:1. */
+  --zone-ink:   #12161A;  /* text on an active zone fill */
+  --green-hi:   #4CAF50;  --green-hov:  #43A047;   /* 6.54:1 / 5.50:1 dark text */
+  --yellow-hi:  #FFC400;  --yellow-hov: #EDB600;   /* 11.38:1 / 9.77:1 dark text */
+  --red-hi:     #F25430;  --red-hov:    #E64A2E;   /* 5.27:1 / 4.66:1 dark text */
+
+  --text: 17px;
+  --font: system-ui, "Segoe UI", sans-serif;
+}
+
+html[data-font="atkinson"]     { --font: "Atkinson Hyperlegible", system-ui, sans-serif; }
+html[data-font="opendyslexic"] { --font: "OpenDyslexic", "OpenDyslexic3", system-ui, sans-serif; }
+html[data-font="verdana"]      { --font: Verdana, Geneva, sans-serif; }
+html[data-font="serif"]        { --font: Georgia, "Times New Roman", serif; }
+
+* { box-sizing: border-box; }
+
+html { height: 100%; background: #12161A; }
+
+body {
+  height: 100vh;
+  margin: 0;
+  background: var(--ground);
+  color: var(--ink);
+  font-family: var(--font);
+  font-size: var(--text);
+  line-height: 1.6;
+  display: grid;
+  /* Rows that cannot silently vanish: the transcript takes what is left
+     and scrolls. (Seventh row: the Knowledge Base drawer — collapsed to
+     nothing while hidden.) */
+  grid-template-rows: auto 1fr auto auto auto auto auto;
+  gap: 8px;
+  padding-block: 10px 12px;
+  padding-inline: 16px;
+}
+
+:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+.skip {
+  position: absolute;
+  left: -9999px;
+  background: var(--fill);
+  color: var(--ink);
+  padding: 10px 16px;
+  border-radius: 6px;
+  z-index: 10;
+}
+.skip:focus { left: 16px; top: 12px; }
+
+.sr {
+  position: absolute; width: 1px; height: 1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap;
+}
+
+/* --- top bar ---------------------------------------------------------- */
+.bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+
+.brand { font-weight: 700; letter-spacing: -0.01em; font-size: 1.05em; }
+.brand span { color: var(--ink-mute); font-weight: 400; margin-left: .3em; }
+
+.tag {
+  font-size: .72em;
+  color: var(--ink-mute);
+  border: 1px solid var(--frame);
+  border-radius: 999px;
+  padding: 2px 9px;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.grp { display: flex; align-items: center; gap: 6px; }
+.lbl { color: var(--ink-mute); font-size: .85em; }
+.size { color: var(--ink-mute); font-size: .85em; min-width: 5ch; font-variant-numeric: tabular-nums; }
+
+.status {
+  margin: 0 0 0 auto;
+  color: var(--ink-mute);
+  font-size: .85em;
+  text-align: right;
+}
+
+/* --- controls --------------------------------------------------------- */
+.ctl {
+  font: inherit;
+  font-size: .9em;
+  color: var(--ink);
+  background: var(--fill);
+  border: 1px solid var(--outline);
+  border-radius: 6px;
+  padding: 10px 14px;
+  min-height: 44px;
+  cursor: pointer;
+}
+.ctl:hover { background: var(--fill-hi); }
+.ctl:disabled { opacity: .5; cursor: not-allowed; }
+
+select.ctl { padding-right: 8px; }
+
+.check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: .9em;
+  min-height: 44px;
+  padding: 0 6px;
+}
+.check input { width: 24px; height: 24px; accent-color: var(--fill); }
+
+/* A desktop-only control stays visible and says why, rather than
+   vanishing — the delta between the builds is documented in the UI. */
+.check.desktop { color: var(--ink-mute); cursor: help; }
+.check.desktop input { accent-color: var(--frame); }
+.check .mini {
+  font-size: .72em;
+  border: 1px solid var(--frame);
+  border-radius: 999px;
+  padding: 0 7px;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+}
+
+.mic[aria-pressed="true"] { background: #8B1A1A; border-color: var(--focus); }
+
+.tools, .sources { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.spacer { flex: 1 1 auto; }
+
+.attached {
+  flex: 1 1 12ch;
+  min-width: 0;
+  color: var(--ink);
+  font-size: .9em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* --- modes ------------------------------------------------------------ */
+.modes { display: flex; gap: 8px; flex-wrap: wrap; }
+
+.mode {
+  flex: 1 1 0;
+  font: inherit;
+  font-size: .9em;
+  color: var(--ink);
+  background: var(--surface);
+  border: 2px solid var(--outline);
+  border-radius: 6px;
+  padding: 10px 12px;
+  min-height: 48px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.mode small { color: inherit; font-weight: 400; margin-left: auto; }
+
+.mode .dot {
+  width: 14px; height: 14px; border-radius: 50%;
+  border: 2px solid currentColor; background: currentColor; flex: none;
+}
+/* At rest: neutral fill, and the hue at FULL saturation in the dot and
+   the border — never a darkened fill, which is where brown and purple
+   came from. */
+.mode[data-zone="GREEN"]  { border-color: var(--green-hi); }
+.mode[data-zone="YELLOW"] { border-color: var(--yellow-hi); }
+.mode[data-zone="RED"]    { border-color: var(--red-hi); }
+.mode[data-zone="GREEN"] .dot  { color: var(--green-hi); }
+.mode[data-zone="YELLOW"] .dot { color: var(--yellow-hi); }
+.mode[data-zone="RED"] .dot    { color: var(--red-hi); }
+
+.mode:hover { background: #242B33; }
+
+/* Active: the hue takes the whole button and the text flips dark. The
+   state is still carried without colour — dark dot, bold label, 3px
+   ink border (WCAG 1.4.1). */
+.mode[aria-checked="true"] {
+  color: var(--zone-ink);
+  border-color: var(--ink);
+  border-width: 3px;
+  font-weight: 600;
+}
+.mode[aria-checked="true"] .dot { color: var(--zone-ink); }
+
+.mode[data-zone="GREEN"][aria-checked="true"]  { background: var(--green-hi); }
+.mode[data-zone="YELLOW"][aria-checked="true"] { background: var(--yellow-hi); }
+.mode[data-zone="RED"][aria-checked="true"]    { background: var(--red-hi); }
+.mode[data-zone="GREEN"][aria-checked="true"]:hover  { background: var(--green-hov); }
+.mode[data-zone="YELLOW"][aria-checked="true"]:hover { background: var(--yellow-hov); }
+.mode[data-zone="RED"][aria-checked="true"]:hover    { background: var(--red-hov); }
+
+/* --- transcript ------------------------------------------------------- */
+.log {
+  background: var(--surface);
+  border: 1px solid var(--frame);
+  border-radius: 8px;
+  padding: 14px 18px;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.log .turn { max-width: 68ch; margin: 0 auto 18px; }
+.log .turn:last-child { margin-bottom: 0; }
+
+.who {
+  font-size: .75em;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--ink-mute);
+  margin-bottom: 4px;
+}
+.turn.me .who { color: #8FBEDA; }
+
+.body p { margin: 0 0 .7em; }
+.body p:last-child { margin-bottom: 0; }
+.body ul, .body ol { margin: 0 0 .7em; padding-left: 1.4em; }
+.body h1, .body h2, .body h3 { font-size: 1.08em; margin: .8em 0 .3em; line-height: 1.3; }
+.body code {
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: .9em;
+  background: #0E1216;
+  border: 1px solid var(--frame);
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+.body pre {
+  background: #0E1216;
+  border: 1px solid var(--frame);
+  border-radius: 6px;
+  padding: 12px 14px;
+  overflow-x: auto;
+  margin: 0 0 .7em;
+}
+.body pre code { background: none; border: 0; padding: 0; }
+.body strong { font-weight: 700; }
+.body blockquote {
+  margin: 0 0 .7em; padding-left: 12px;
+  border-left: 3px solid var(--frame); color: var(--ink-mute);
+}
+
+.note {
+  max-width: 68ch; margin: 0 auto 18px;
+  color: var(--ink-mute);
+  border-left: 3px solid var(--outline);
+  padding-left: 12px;
+  font-size: .92em;
+}
+.note.bad { border-left-color: #E09090; color: #E7B6B6; }
+
+.thinking { color: var(--ink-mute); font-style: italic; }
+
+/* The pod assistant streams; the bar marks text still being written. */
+.streaming .body > :last-child::after {
+  content: "▍";
+  color: var(--ink-mute);
+  animation: blink 1s steps(1) infinite;
+}
+@keyframes blink { 50% { opacity: 0; } }
+
+.used { margin: .6em 0 0; font-size: .85em; color: var(--ink-mute); }
+
+/* --- composer --------------------------------------------------------- */
+.composer { display: flex; gap: 8px; align-items: flex-end; }
+
+.composer textarea {
+  flex: 1 1 auto;
+  min-width: 0;
+  font: inherit;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--outline);
+  border-radius: 6px;
+  padding: 12px 14px;
+  resize: none;
+  min-height: 48px;
+  max-height: 30vh;
+  overflow-y: auto;
+}
+.composer textarea::placeholder { color: var(--ink-mute); }
+
+.send { min-width: 96px; font-weight: 600; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .ctl, .mode { transition: background-color .12s ease; }
+}
+
+/* --- knowledge base ----------------------------------------------------
+   The Study Workstation's stores, resident in the console: Library,
+   Cards, Notes, Journal, Glossary. A drawer, not a page — it opens
+   between the sources row and the modes row and takes bounded height,
+   so the transcript never loses its room. */
+.kb {
+  background: var(--surface);
+  border: 1px solid var(--frame);
+  border-radius: 8px;
+  padding: 10px 14px;
+  max-height: 36vh;
+  overflow-y: auto;
+}
+.kb-tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+.kb-tab {
+  font: inherit; font-size: .85em; color: var(--ink);
+  background: var(--surface); border: 1px solid var(--outline);
+  border-radius: 999px; padding: 6px 12px; min-height: 36px; cursor: pointer;
+}
+.kb-tab:hover { background: #242B33; }
+.kb-tab[aria-selected="true"] { background: var(--fill); font-weight: 600; }
+.kb-item {
+  border: 1px solid var(--frame); border-radius: 6px;
+  padding: 8px 10px; margin: 6px 0; font-size: .9em;
+}
+.kb-item h4 { margin: 0 0 2px; font-size: 1em; }
+.kb-meta { color: var(--ink-mute); font-size: .82em; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.kb-body { color: var(--ink-mute); white-space: pre-wrap; margin-top: 4px; max-height: 7em; overflow: hidden; }
+.kb-form label { display: block; font-size: .82em; color: var(--ink-mute); margin: 8px 0 2px; }
+.kb-form input[type=text], .kb-form textarea, .kb-form select {
+  width: 100%; font: inherit; font-size: .9em; color: var(--ink);
+  background: var(--ground); border: 1px solid var(--outline);
+  border-radius: 6px; padding: 8px 10px;
+}
+.kb-form textarea { min-height: 72px; resize: vertical; }
+.kb-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 8px; }
+.kb-empty { color: var(--ink-mute); font-size: .9em; padding: 8px; text-align: center; border: 1px dashed var(--frame); border-radius: 6px; }
+.kb-zone { font-size: .78em; font-weight: 600; border-radius: 999px; padding: 1px 8px; border: 1px solid var(--frame); }
+.kb-zone.GREEN  { color: var(--green-hi);  border-color: var(--green-hi); }
+.kb-zone.YELLOW { color: var(--yellow-hi); border-color: var(--yellow-hi); }
+.kb-zone.RED    { color: var(--red-hi);    border-color: var(--red-hi); }
+.kb-coord { font-family: ui-monospace, Consolas, monospace; font-size: .85em; color: var(--ink-mute); }
+
+/* --- read-along ------------------------------------------------------- */
+.s { border-radius: 3px; transition: background-color .12s ease; }
+.s.reading { background: #2E4258; box-shadow: 0 0 0 2px #2E4258; }
+.w.now {
+  background: #3A5570;
+  border-radius: 2px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-thickness: 2px;
+}
+.reading-on .s { cursor: pointer; }
+.reading-on .s:hover { background: #26313D; }
+
+@media (prefers-reduced-motion: reduce) {
+  .s { transition: none; }
+  .streaming .body > :last-child::after { animation: none; }
+}
+</style>
+
+<a class="skip" href="#msg">Skip to the message box</a>
+
+<header class="bar" role="banner">
+  <div class="brand">Strata<span>Console</span></div>
+  <span class="tag">web build</span>
+
+  <div class="grp" role="group" aria-label="Reading">
+    <label class="lbl" for="font">Font</label>
+    <select id="font" class="ctl">
+      <option value="system">System</option>
+      <option value="atkinson">Atkinson Hyperlegible</option>
+      <option value="opendyslexic">OpenDyslexic</option>
+      <option value="verdana">Verdana</option>
+      <option value="serif">Serif</option>
+    </select>
+    <button id="smaller" class="ctl" type="button" aria-label="Smaller text">A&minus;</button>
+    <button id="bigger" class="ctl" type="button" aria-label="Larger text">A+</button>
+    <output id="size" class="size" aria-live="polite">17px</output>
+  </div>
+
+  <p id="status" class="status" role="status" aria-live="polite">Starting…</p>
+  <output id="ram" class="size"
+          title="JS heap this page is using — the browser build's honest stand-in for the desktop RAM readout"></output>
+</header>
+
+<main id="log" class="log" tabindex="0" role="log" aria-live="polite"
+      aria-label="Conversation transcript"></main>
+
+<div class="tools" role="group" aria-label="Voice and session">
+  <button id="mic" class="ctl mic" type="button" aria-pressed="false">
+    <span aria-hidden="true">🎤</span> Speak
+  </button>
+  <select id="tier" class="ctl" aria-label="Dictation accuracy" disabled
+          title="Whisper tiers are a desktop feature — the browser supplies a single speech engine.">
+    <option>Browser engine</option>
+  </select>
+
+  <button id="read" class="ctl" type="button" aria-pressed="false">
+    <span aria-hidden="true">🔊</span> Read
+  </button>
+  <label class="check">
+    <input type="checkbox" id="autoread"> Auto
+  </label>
+
+  <span class="spacer"></span>
+
+  <button id="clear" class="ctl" type="button">
+    <span aria-hidden="true">🧹</span> Clear
+  </button>
+  <button id="help" class="ctl" type="button">Help</button>
+</div>
+
+<!-- What the assistant is allowed to read this turn. The pod assistant
+     never reaches any of it directly: the page gathers the text and
+     hands it in. -->
+<div class="sources" role="group" aria-label="What the assistant may read">
+  <label class="check" for="src-web" id="lbl-web"
+         title="Search the web before answering — through your claude.ai Exa connector, with your permission. Saying 'search the web for …' works without the box.">
+    <input type="checkbox" id="src-web">
+    <span aria-hidden="true">🌐</span>&nbsp;Web search
+  </label>
+  <label class="check" for="src-drive" id="lbl-drive"
+         title="Search your own Google Drive (Google Sheets included) before answering — through your claude.ai Google Drive connector, with your permission.">
+    <input type="checkbox" id="src-drive">
+    <span aria-hidden="true">☁</span>&nbsp;Google Drive
+  </label>
+  <label class="check" for="src-kb" id="lbl-kb"
+         title="Ground answers in your Knowledge Base — the library, cards, notes, journal and glossary stored in this browser. No cloud call: the page searches locally and hands ranked passages in.">
+    <input type="checkbox" id="src-kb">
+    <span aria-hidden="true">🗂</span>&nbsp;Knowledge
+  </label>
+  <button id="kb-open" class="ctl" type="button" aria-expanded="false"
+          aria-controls="kb-panel">
+    <span aria-hidden="true">🗂</span> Knowledge Base
+  </button>
+
+  <button id="upload" class="ctl" type="button">
+    <span aria-hidden="true">📎</span> Upload document
+  </button>
+  <input type="file" id="file" class="sr" tabindex="-1"
+         accept=".txt,.md,.markdown,.csv,.html,.htm,.json,.log">
+  <button id="detach" class="ctl detach" type="button" hidden>Remove</button>
+
+  <output id="attached" class="attached" aria-live="polite"></output>
+  <input type="file" id="kb-file" class="sr" tabindex="-1"
+         accept=".txt,.md,.markdown,.csv,.html,.htm,.json,.log">
+</div>
+
+<!-- Knowledge Base — the Study Workstation's five stores, resident in
+     the console. The pod assistant never reaches them directly: the page
+     searches, ranks and hands passages in, the same contract as every
+     other source — and the assistant's writes go through page-defined
+     tools, applied locally, logged, and reported in the transcript. -->
+<section id="kb-panel" class="kb" aria-label="Knowledge base" hidden>
+  <div class="kb-tabs" role="tablist" aria-label="Knowledge base sections"></div>
+  <div id="kb-body"></div>
+</section>
+
+<div class="modes" role="radiogroup" aria-label="Operating mode">
+  <button class="mode" data-zone="GREEN"  role="radio" aria-checked="true" type="button">
+    <span class="dot" aria-hidden="true"></span>Green<small>active</small>
+  </button>
+  <button class="mode" data-zone="YELLOW" role="radio" aria-checked="false" type="button">
+    <span class="dot" aria-hidden="true"></span>Yellow<small>analytical</small>
+  </button>
+  <button class="mode" data-zone="RED"    role="radio" aria-checked="false" type="button">
+    <span class="dot" aria-hidden="true"></span>Red<small>archival</small>
+  </button>
+</div>
+
+<form id="composer" class="composer" autocomplete="off">
+  <label class="sr" for="msg">Message</label>
+  <textarea id="msg" rows="1" placeholder="Type a message, or press Speak…"></textarea>
+  <button id="send" class="ctl send" type="submit">Send</button>
+</form>
+
+<script>
+'use strict';
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * Strata Console — browser build.
+ *
+ * A port of the pywebview desktop shell. The shell was already HTML/CSS/
+ * JS; what follows below the UI code are JavaScript ports of the Python
+ * kernels the bridge used to answer for: commands.py, dictation.py,
+ * speech.py, retrieval.py, context_sources.py, and the five pipeline
+ * stages of strata_core.py.
+ *
+ * One seat changed occupants. Where the desktop engine holds an Ollama
+ * client (llama3.2:3b, loopback only), this build holds a POD ASSISTANT:
+ * the page asks Claude at runtime, with the viewer's permission, using
+ * the same prompt structure, the same mode conditioning, and the same
+ * honest fallback — when the pod assistant is unavailable, the
+ * deterministic template engine answers and the UI says so.
+ * ═══════════════════════════════════════════════════════════════════ */
+
+const $ = (id) => document.getElementById(id);
+const log = $('log');
+
+/* ---------- operator token lexicon (strata_core.GLYPH_CODEX) ---------- */
+
+const GLYPHS = [
+  { glyph: '🔺', name: 'TRANSFORM',   fn: 'Transform input' },
+  { glyph: '🧊', name: 'STABILIZE',   fn: 'Logic / structure' },
+  { glyph: '🔸', name: 'PROCESS',     fn: 'Process' },
+  { glyph: '⭕', name: 'SENTIMENT',   fn: 'Tone / sentiment' },
+  { glyph: '💠', name: 'REFLECT',     fn: 'Self-reference' },
+  { glyph: '🌀', name: 'EXPAND',      fn: 'Iterate / grow' },
+  { glyph: '🔮', name: 'MAP',         fn: 'Concept mapping' },
+  { glyph: '🥥', name: 'AUTHOR',      fn: 'Author intent' },
+  { glyph: '🤝', name: 'COLLABORATE', fn: 'Collaboration' },
+];
+
+/* ---------- persistence (SQLite → localStorage, same semantics) -------
+ * memory_threads + the clear floor: archive, never delete. Storage can
+ * be absent or full (private windows, blocked site data), so every
+ * touch is guarded and the store falls back to memory for the session. */
+
+const store = (() => {
+  let mem = { rows: [], floor: 0, state: {} };
+  const load = (k, d) => {
+    try { const v = localStorage.getItem('strata_' + k); return v === null ? d : JSON.parse(v); }
+    catch (e) { return d; }
+  };
+  mem.rows = load('rows', []);
+  mem.floor = load('floor', 0);
+  mem.state = load('state', {});
+  mem.turns = load('turns', []);
+  mem.tfloor = load('tfloor', 0);
+  const save = (k) => {
+    try { localStorage.setItem('strata_' + k, JSON.stringify(mem[k])); } catch (e) { /* memory-only */ }
+  };
+  return {
+    addThread(input, zone) {
+      mem.rows.push({ t: new Date().toISOString(), input: String(input).slice(0, 100), zone });
+      save('rows');
+    },
+    recentThreads(n = 3) { return mem.rows.slice(mem.floor).slice(-n); },
+    threadCount() { return mem.rows.length - mem.floor; },
+    archivedCount() { return mem.rows.length; },
+    /* Conversation recall for the pod assistant. The desktop engine
+       could hand its 3B model only 40-character snippets of the last
+       three inputs — its 2048-token window left no room for more. The
+       pod assistant has the room, so the recent turns themselves are
+       kept and sent back, still governed by the same clear floor. */
+    addChatTurn(role, content) {
+      const body = String(content || '').slice(0, 4000);
+      if (!body) return;
+      mem.turns.push({ role: role, content: body });
+      if (mem.turns.length > 48) {
+        const drop = mem.turns.length - 48;
+        mem.turns.splice(0, drop);
+        mem.tfloor = Math.max(0, mem.tfloor - drop);
+        save('tfloor');
+      }
+      save('turns');
+    },
+    recallTurns(maxTurns = 12, maxChars = 16000) {
+      const live = mem.turns.slice(mem.tfloor);
+      const out = [];
+      let total = 0;
+      for (let i = live.length - 1; i >= 0 && out.length < maxTurns; i -= 1) {
+        const t = live[i];
+        if (!t || (t.role !== 'user' && t.role !== 'assistant') || !t.content) continue;
+        total += t.content.length;
+        if (total > maxChars) break;
+        out.unshift({ role: t.role, content: t.content });
+      }
+      return out;
+    },
+    raiseFloor() {
+      const cleared = this.threadCount();
+      mem.floor = mem.rows.length;
+      mem.tfloor = mem.turns.length;
+      save('floor');
+      save('tfloor');
+      return cleared;
+    },
+    getState(k, d) { return (k in mem.state) ? mem.state[k] : d; },
+    setState(k, v) { mem.state[k] = v; save('state'); },
+  };
+})();
+
+/* ---------- pipeline stages (strata_core.py, ported) ------------------ */
+
+function classifyInput(userInput) {            /* InputNode */
+  const text = userInput.trim();
+  const glyphs = GLYPHS.filter(g => text.includes(g.glyph)).map(g => g.glyph);
+  let residual = text;
+  for (const g of glyphs) residual = residual.split(g).join('');
+  residual = residual.trim();
+
+  const isCommand = text.startsWith('/');
+  const glyphHeavy = glyphs.length >= 1 && residual.length <= Math.max(2, glyphs.length * 2);
+  const lowered = text.toLowerCase();
+
+  let intent;
+  if (isCommand) intent = 'command';
+  else if (glyphHeavy) intent = 'symbolic';
+  else if (text.includes('?') ||
+           /^(what|how|why|who|when|where|can |is |are |do |does )/.test(lowered)) intent = 'query';
+  else intent = 'reflection';
+
+  return {
+    text: userInput, intent, isCommand, glyphs,
+    glyphMeanings: glyphs.map(ch => GLYPHS.find(g => g.glyph === ch)).filter(Boolean),
+    glyphHeavy, residual,
+  };
+}
+
+function route(d) {                            /* RouterNode */
+  if (d.intent === 'command') return 'command';
+  if (d.intent === 'symbolic' || d.glyphs.length) return 'symbolic';
+  if (d.intent === 'query') return 'synthesis';
+  return 'reflective';
+}
+
+function retrieveContext() {                   /* MemoryNode */
+  const recent = store.recentThreads(3);
+  if (!recent.length) return 'No prior context — this is the opening of the session.';
+  return 'Recent context → ' + recent.map(t => `[${t.zone || '?'}] ${(t.input || '').slice(0, 40)}`).join(' | ');
+}
+
+const TONES = {                                /* PersonaNode */
+  GREEN:  { label: 'active',     voice: 'energized and forward-driving' },
+  YELLOW: { label: 'analytical', voice: 'measured, pattern-focused, diagnostic' },
+  RED:    { label: 'grounded',   voice: 'slow, careful and calm' },
+};
+
+const ROUTE_DESC = {                           /* OutputSynthNode */
+  symbolic:   'Processed via the operator-token path (tokens detected).',
+  synthesis:  'Processed via the analytical path (query parsed for intent).',
+  reflective: 'Processed via the default reflective path.',
+  command:    'Routed to the command handler.',
+};
+const CLOSING_BY_ZONE = { GREEN: '[mode: active]', YELLOW: '[mode: analytical]', RED: '[mode: archival]' };
+
+function synthesizeTemplate(d, routePath, context, tone, currentZone) {
+  const voice = tone.voice || 'clear';
+  const label = tone.label || 'active';
+  const snippet = d.text.trim().slice(0, 80);
+
+  const summary = d.glyphs.length
+    ? `Received ${d.glyphs.length} operator token(s) ${d.glyphs.join(' ')} + '${snippet}' | Intent: ${d.intent} | Mode: ${currentZone}`
+    : `Input: '${snippet}' | Intent: ${d.intent} | Route: ${routePath} | Mode: ${currentZone}`;
+
+  let description = ROUTE_DESC[routePath] || ROUTE_DESC.reflective;
+  if (d.glyphMeanings.length) {
+    description += ' Active tokens: ' + d.glyphMeanings.map(m => `${m.glyph}=${m.fn}`).join(', ') + '.';
+  }
+
+  const comments = `[${label} tone — ${voice}] ` + (context || 'No prior context.');
+  const closing = CLOSING_BY_ZONE[currentZone] || '[mode: active]';
+  return { summary, description, comments, closing };
+}
+
+/* ---------- slash commands (strata_tools/commands.py, ported) --------- */
+
+const COMMANDS = {
+  status:  'Show the current mode, assistant and memory depth.',
+  lexicon: 'List the operator tokens and what each one does.',
+  mode:    'Switch mode: /mode green | yellow | red.',
+  kb:      'Knowledge base: /kb — counts and recent activity; /kb open | close.',
+  clear:   'Clear the window and what the assistant recalls.',
+  port:    'What carried over from the desktop console, and what could not.',
+  help:    'Show this list.',
+};
+const ALIASES = { zone: 'mode', new: 'clear' };
+
+function parseCommand(text) {
+  const raw = (text || '').trim();
+  if (!raw.startsWith('/')) return null;
+  const body = raw.slice(1).trim();
+  if (!body) return { name: '', argument: '', known: false };
+  const sp = body.indexOf(' ');
+  let name = (sp < 0 ? body : body.slice(0, sp)).toLowerCase();
+  const argument = sp < 0 ? '' : body.slice(sp + 1).trim();
+  name = ALIASES[name] || name;
+  return { name, argument, known: name in COMMANDS };
+}
+
+function helpText() {
+  const lines = ['### Commands', ''];
+  for (const [name, description] of Object.entries(COMMANDS)) {
+    lines.push(`- \`/${name}\` — ${description}`);
+  }
+  lines.push('', 'Also accepted: ' + Object.keys(ALIASES).map(a => `\`/${a}\``).join(', ') + '.');
+  return lines.join('\n');
+}
+
+function lexiconText() {
+  const lines = ['### Operator Token Lexicon', ''];
+  for (const g of GLYPHS) lines.push(`- ${g.glyph}  **${g.name}** — ${g.fn}`);
+  return lines.join('\n');
+}
+
+const PORT_NOTES = [
+  '### Port notes — what this browser build is',
+  '',
+  'The desktop shell was already HTML/CSS/JS in a native window, so the interface carried over nearly line for line. The Python kernels were ported to JavaScript; the engine\'s one non-portable seat changed occupants.',
+  '',
+  '**Carried over intact** — the five pipeline stages (classify → route → retrieve → condition → synthesize), slash commands and their grammar, operator tokens, the three operating modes with persistence, read-along with sentence highlight and word underline, spoken punctuation while dictating, the speakable normalizer (numbers, money, years, code held atomic), upload retrieval with chunk ranking, and the clear floor — clearing archives, it never deletes.',
+  '',
+  '**Adapted** — the assistant: a **pod assistant** (Claude, asked by this page with your permission) sits where `llama3.2:3b` sat; the deterministic template engine remains the fallback, exactly as on the desktop. Dictation: the browser\'s speech engine replaces Whisper. Telemetry: the JS heap readout stands in for free system RAM. Mode → temperature became mode → model tier plus voice conditioning, since a page cannot set sampling temperature. Zone colours: a darkened hue is not that hue — dark yellow reads brown and dark red reads purple — so no darkened fills remain: at rest each mode is neutral with its hue at full saturation in the dot and border, and the active mode takes the full hue with dark text, every pair re-measured to WCAG AA.',
+  '',
+  '**Upgraded** — conversation recall. The desktop engine\'s 2048-token window allowed only 40-character snippets of the last three inputs; the pod assistant has the room, so the recent turns themselves (yours and its, bounded) are stored, survive a reload, and ride along with each message. The clear floor still governs: **Clear** archives them out of recall without deleting anything. And the desktop\'s ☁ source returns as **☁ Google Drive**: tick it and the console live-searches your own Drive through your claude.ai connector, reads the most relevant files — Google Sheets come back as tables — and cites what it read, asking your permission in the page first. And 🌐 web search returns as well, through your Exa connector — the box works, and so does simply typing "search the web for …".',
+  '',
+  '**Integrated** — the Sentinel Forge Study Workstation\'s knowledge stores now live in the console under **🗂 Knowledge Base**: a **Library** (paste or upload passages), **note cards** with cell addresses (A1–Z999), zones and cognitive load, **Notes**, a **Journal**, and a **Glossary**. They sit in this browser under their own storage key, fully separate from the conversation stores — neither can touch the other. Tick **🗂 Knowledge** and the console searches all five stores with the same retrieval kernel that reads attachments, and hands the ranked passages to the pod assistant as contextual memory — a local search, never a cloud call. The assistant can also write: ask it to capture a card, save a note, journal the session, or define a term, and it does so through tools this page defines — every write is applied locally, logged, and reported in the transcript. `/kb` shows the counts; `/kb open` opens the drawer.',
+  '',
+  '**Did not port** — Whisper tiers and the RAM budget (no model is resident here), `.docx`/`.pdf`/`.xlsx` upload extraction (text formats only in the browser — though Drive files of those types read fine through the connector), and the **local-first guarantee itself**: the pod assistant, the web search and the Drive bridge are all cloud calls made with your permission. The desktop console remains the local-first build; this page is the same application layer demonstrating that the pipeline, not the model, is the product.',
+].join('\n');
+
+/* ---------- spoken punctuation (strata_tools/dictation.py, ported) ---- */
+
+const TWO_WORD = {
+  'question mark': ['?', 'close'], 'exclamation mark': ['!', 'close'],
+  'exclamation point': ['!', 'close'], 'full stop': ['.', 'close'],
+  'open quote': ['"', 'open'], 'close quote': ['"', 'close'],
+  'open paren': ['(', 'open'], 'close paren': [')', 'close'],
+  'open parenthesis': ['(', 'open'], 'close parenthesis': [')', 'close'],
+  'dollar sign': ['$', 'open'], 'percent sign': ['%', 'close'],
+  'new line': ['\n', 'break'], 'new paragraph': ['\n\n', 'break'],
+  'tab key': ['\t', 'break'],
+};
+const ONE_WORD = {
+  period: ['.', 'close'], comma: [',', 'close'], colon: [':', 'close'],
+  semicolon: [';', 'close'], ellipsis: ['…', 'close'],
+};
+const MARKS = '.,!?;:';
+const PRECEDENCE = '!?.;:,';
+
+function strongest(marks) {
+  for (const m of PRECEDENCE) if (marks.includes(m)) return m;
+  return marks ? marks[0] : '';
+}
+
+function applyDictationCommands(text) {
+  try {
+    if (!text) return text || '';
+    const words = text.split(/\s+/).filter(Boolean);
+    const out = [];
+    let needSpace = false, capNext = false, capsMode = null;
+    const spaceBefore = () => { if (needSpace && out.length) out.push(' '); needSpace = false; };
+
+    let i = 0;
+    while (i < words.length) {
+      const lower = words[i].toLowerCase();
+      const two = words.slice(i, i + 2).map(w => w.toLowerCase()).join(' ');
+      const three = words.slice(i, i + 3).map(w => w.toLowerCase()).join(' ');
+
+      if (three === 'all caps on')  { capsMode = 'upper'; i += 3; continue; }
+      if (three === 'all caps off') { capsMode = null;    i += 3; continue; }
+      if (two === 'caps on')  { capsMode = 'title'; i += 2; continue; }
+      if (two === 'caps off') { capsMode = null;    i += 2; continue; }
+      if (lower === 'cap')    { capNext = true;     i += 1; continue; }
+
+      let spec = (i + 1 < words.length) ? TWO_WORD[two] : undefined;
+      let step = 2;
+      if (!spec) { spec = ONE_WORD[lower]; step = 1; }
+      if (spec) {
+        const [symbol, kind] = spec;
+        if (kind === 'open') { spaceBefore(); out.push(symbol); needSpace = false; }
+        else if (kind === 'break') { out.push(symbol); needSpace = false; }
+        else { out.push(symbol); needSpace = true; }
+        i += step;
+        continue;
+      }
+
+      let word = words[i];
+      if (capNext) { word = word.charAt(0).toUpperCase() + word.slice(1); capNext = false; }
+      else if (capsMode === 'title') word = word.charAt(0).toUpperCase() + word.slice(1);
+      else if (capsMode === 'upper') word = word.toUpperCase();
+      spaceBefore(); out.push(word); needSpace = true;
+      i += 1;
+    }
+    return out.join('');
+  } catch (e) { return text; }
+}
+
+function dedupPunctuation(text) {
+  try {
+    if (!text) return text || '';
+    let r = text;
+    r = r.replace(/[.,!?;:]+(?:[ \t]*[.,!?;:]+)*/g,
+      (m) => strongest([...m].filter(c => MARKS.includes(c)).join('')));
+    r = r.replace(/[ \t]+([.,!?;:])/g, '$1');
+    r = r.replace(/(?<!\d)([.,!?;:])[ \t]*(?=[^\s\d.,!?;:])/g, '$1 ');
+    return r;
+  } catch (e) { return text; }
+}
+
+function polish(text) {
+  try { return dedupPunctuation(applyDictationCommands(text)); }
+  catch (e) { return text; }
+}
+
+/* ---------- speakable (strata_tools/speech.py, ported) ---------------- */
+
+const ONES = ['zero','one','two','three','four','five','six','seven','eight','nine','ten',
+  'eleven','twelve','thirteen','fourteen','fifteen','sixteen','seventeen','eighteen','nineteen'];
+const TENS = ['','','twenty','thirty','forty','fifty','sixty','seventy','eighty','ninety'];
+const ABBREV = [
+  ['Mr.','Mister'], ['Mrs.','Missus'], ['Ms.','Miss'], ['Dr.','Doctor'],
+  ['Prof.','Professor'], ['Jr.','Junior'], ['Sr.','Senior'], ['St.','Saint'],
+  ['vs.','versus'], ['etc.','et cetera'], ['e.g.','for example'],
+  ['i.e.','that is'], ['approx.','approximately'],
+];
+const ORDINAL_IRREGULAR = {
+  one: 'first', two: 'second', three: 'third', five: 'fifth',
+  eight: 'eighth', nine: 'ninth', twelve: 'twelfth',
+};
+
+function intToWords(n) {
+  if (n < 0) return 'negative ' + intToWords(-n);
+  if (n < 20) return ONES[n];
+  if (n < 100) return TENS[Math.floor(n / 10)] + (n % 10 ? '-' + ONES[n % 10] : '');
+  const parts = [];
+  for (const [value, name] of [[1e9, 'billion'], [1e6, 'million'], [1e3, 'thousand']]) {
+    if (n >= value) { parts.push(intToWords(Math.floor(n / value)) + ' ' + name); n %= value; }
+  }
+  if (n >= 100) { parts.push(ONES[Math.floor(n / 100)] + ' hundred'); n %= 100; }
+  if (n) parts.push(intToWords(n));
+  return parts.join(' ');
+}
+
+function ordinalize(words) {
+  const cut = words.lastIndexOf('-');
+  let head = cut < 0 ? '' : words.slice(0, cut);
+  let last = cut < 0 ? words : words.slice(cut + 1);
+  if (last in ORDINAL_IRREGULAR) last = ORDINAL_IRREGULAR[last];
+  else if (last.endsWith('y')) last = last.slice(0, -1) + 'ieth';
+  else last = last + 'th';
+  return head ? head + '-' + last : last;
+}
+
+function decimalToWords(token) {
+  token = token.split(',').join('');
+  if (token.includes('.')) {
+    const [whole, frac] = token.split('.');
+    const wholeWords = whole ? intToWords(parseInt(whole, 10)) : 'zero';
+    const digits = [...frac].filter(d => /\d/.test(d)).map(d => ONES[+d]).join(' ');
+    return (wholeWords + ' point ' + digits).trim();
+  }
+  return intToWords(parseInt(token, 10));
+}
+
+function yearToWords(year) {
+  if (year >= 2000 && year <= 2009) {
+    return year === 2000 ? 'two thousand' : 'two thousand ' + intToWords(year - 2000);
+  }
+  const hi = Math.floor(year / 100), lo = year % 100;
+  if (lo === 0) return intToWords(hi) + ' hundred';
+  if (lo < 10) return intToWords(hi) + ' oh ' + ONES[lo];
+  return intToWords(hi) + ' ' + intToWords(lo);
+}
+
+const FENCE_SPOKEN = '(code block)';
+
+function stripMarkdown(text) {
+  try {
+    if (!text) return text || '';
+    let out = text;
+    out = out.replace(/```[^\n]*\n[\s\S]*?(?:```|$)/g, FENCE_SPOKEN + '. ');
+    out = out.replace(/^\s*\|[\s:|-]+\|\s*$/gm, '');
+    out = out.replace(/^\s*\|.*\|\s*$/gm,
+      (m) => m.trim().replace(/^\||\|$/g, '').split('|').map(c => c.trim()).join(' ') + '.');
+    out = out.replace(/^\s{0,3}(?:[-*_]\s*){3,}$/gm, '');
+    out = out.replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1');
+    out = out.replace(/\[([^\]]+)\]\([^)]*\)/g, '$1');
+    out = out.replace(/^\s{0,3}#{1,6}\s+/gm, '');
+    out = out.replace(/^\s{0,3}>\s?/gm, '');
+    out = out.replace(/^(\s*)[-*+]\s+/gm, '$1');
+    for (let i = 0; i < 3; i++) {
+      out = out.replace(/(\*{1,3}|_{1,3})(\S(?:[\s\S]*?\S)?)\1/g, '$2');
+    }
+    out = out.replace(/\n{3,}/g, '\n\n');
+    return out.trim();
+  } catch (e) { return text; }
+}
+
+function normalizeCodeSpan(code) {
+  return code.split('_').join(' underscore ').split('/').join(' slash ').trim();
+}
+
+function normalizeProse(text) {
+  let out = text;
+  for (const [abbr, full] of ABBREV) out = out.split(abbr).join(full);
+  out = out.replace(/\$(\d[\d,]*)(\.\d{1,2})?/g, (m, whole, cents) => {
+    const w = parseInt(whole.split(',').join(''), 10);
+    let s = intToWords(w) + (w === 1 ? ' dollar' : ' dollars');
+    if (cents) {
+      const c = Math.round(parseFloat('0' + cents) * 100);
+      if (c) s += ' and ' + intToWords(c) + (c === 1 ? ' cent' : ' cents');
+    }
+    return s;
+  });
+  out = out.replace(/(\d[\d,]*(?:\.\d+)?)\s*%/g, (m, num) => decimalToWords(num) + ' percent');
+  out = out.replace(/\b(\d+)(?:st|nd|rd|th)\b/g, (m, num) => ordinalize(intToWords(parseInt(num, 10))));
+  out = out.replace(/\b(1\d{3}|20\d{2})\b/g, (m, y) => yearToWords(parseInt(y, 10)));
+  out = out.replace(/\b\d[\d,]*(?:\.\d+)?\b/g, (m) => decimalToWords(m));
+  return out;
+}
+
+function normalizeForSpeech(text) {
+  try {
+    if (!text) return text || '';
+    const parts = text.split(/`([^`\n]+)`/);
+    return parts.map((seg, i) => i % 2 ? normalizeCodeSpan(seg) : normalizeProse(seg)).join('');
+  } catch (e) { return text; }
+}
+
+function speakable(text) {
+  try { return normalizeForSpeech(stripMarkdown(text)); }
+  catch (e) { return text; }
+}
+
+/* ---------- retrieval (strata_tools/retrieval.py, ported) ------------- */
+
+function terms(query) {
+  return ((query || '').toLowerCase().match(/[a-z0-9]+/g) || []).filter(w => w.length > 2);
+}
+
+function scoreText(text, ts) {
+  if (!ts.length) return 0;
+  const t = (text || '').toLowerCase();
+  return ts.reduce((sum, w) => sum + (t.split(w).length - 1), 0);
+}
+
+function chunkText(text, chunkChars = 1200, overlap = 150) {
+  text = text || '';
+  if (!text.trim()) return [];
+  if (text.length <= chunkChars) return [text];
+  const step = Math.max(1, chunkChars - overlap);
+  const chunks = [];
+  for (let start = 0; start < text.length; start += step) {
+    const piece = text.slice(start, start + chunkChars);
+    if (piece.trim()) chunks.push(piece);
+    if (start + chunkChars >= text.length) break;
+  }
+  return chunks;
+}
+
+function retrieveFromText(query, text, limit = 4, chunkChars = 1200, overlap = 150, maxContext = 6000) {
+  if (!text) return '';
+  const chunks = chunkText(text, chunkChars, overlap);
+  if (!chunks.length) return '';
+  const ts = terms(query);
+  const scored = chunks.map((c, i) => [scoreText(c, ts), i, c.slice(0, chunkChars)])
+    .filter(x => x[0] > 0)
+    .sort((a, b) => b[0] - a[0])
+    .slice(0, limit);
+  if (!scored.length) return text.slice(0, maxContext);
+  const out = [];
+  let total = 0;
+  for (const [, , snipRaw] of scored) {
+    if (total >= maxContext) break;
+    let snip = snipRaw;
+    if (total + snip.length > maxContext) snip = snip.slice(0, maxContext - total);
+    out.push(snip);
+    total += snip.length;
+  }
+  return out.join('\n…\n');
+}
+
+/* ---------- context sources (strata_tools/context_sources.py) --------- */
+
+const TRIGGER_PHRASES = [
+  'search the web', 'search the internet', 'search online', 'web search',
+  'look online', 'look this up', 'look up online', 'check the internet',
+  'check online', 'google ', 'on the internet', 'search for', 'do a search',
+  'look up', 'find out', 'latest news', 'current news', "what's the latest",
+  'browse the web', 'web browse',
+];
+const MAX_ATTACHMENT_CHARS = 2000000;
+
+function wantsWeb(userInput) {
+  const low = (userInput || '').toLowerCase();
+  return TRIGGER_PHRASES.some(p => low.includes(p));
+}
+
+function attachmentContext(query, att) {
+  if (!att) return '';
+  const body = retrieveFromText(query, att.text || '');
+  if (!body) return '';
+  return `From the attached file '${att.name || 'file'}':\n` + body;
+}
+
+function attachmentLabel(name, nChars) {
+  const kb = Math.max(1, Math.floor(nChars / 1024));
+  return `📎 ${name} (${kb} KB) — attached; Remove detaches it`;
+}
+
+function busyLabel(hasAttachment, firstPodCall) {
+  if (firstPodCall) return 'first message — your browser asks permission for the pod assistant';
+  if (hasAttachment) return '🔎 reading the attachment…';
+  return 'thinking (pod assistant)…';
+}
+
+/* ---------- knowledge base (Study Workstation, integrated) -------------
+ * The Sentinel Forge Study Workstation's stores — Library, note Cards,
+ * Notes, Journal, Glossary — now resident in the console under their own
+ * key (strata_kb_v1), fully separate from the conversation stores, so
+ * neither can touch the other. The pod assistant reads them the way it
+ * reads every source: the page searches, ranks and hands passages in.
+ * It can also WRITE to them, through tools this page defines — every
+ * write is applied locally, logged, and reported in the transcript. */
+
+const kb = (() => {
+  const KEY = 'strata_kb_v1';
+  const blank = () => ({ documents: [], cards: [], notes: [], journal: [], glossary: [], log: [] });
+  let data = blank();
+  try {
+    const raw = localStorage.getItem(KEY);
+    if (raw) data = Object.assign(blank(), JSON.parse(raw));
+  } catch (e) { data = blank(); }
+  const save = () => { try { localStorage.setItem(KEY, JSON.stringify(data)); } catch (e) { /* memory-only */ } };
+  const uid = (p) => p + '-' + Math.random().toString(36).slice(2, 8) + '-' + Date.now().toString(36);
+  const logIt = (text) => {
+    data.log.unshift({ at: Date.now(), text: String(text).slice(0, 160) });
+    data.log = data.log.slice(0, 100);
+  };
+  const okCoord = (c) => /^[A-Z]\d{1,3}$/.test(c) && parseInt(c.slice(1), 10) >= 1;
+  return {
+    get data() { return data; },
+    addDocument(title, body) {
+      const d = { id: uid('d'), title: String(title || 'Untitled document').slice(0, 200),
+                  body: String(body || ''), at: Date.now() };
+      data.documents.unshift(d); logIt('Added document: ' + d.title); save(); return d;
+    },
+    addCard(o) {
+      o = o || {};
+      const raw = String(o.coord || '').toUpperCase();
+      const load = Math.round(Number(o.load));
+      const c = {
+        id: uid('c'), title: String(o.title || 'Untitled card').slice(0, 200),
+        body: String(o.body || ''),
+        coord: okCoord(raw) ? raw : 'D3',
+        zone: ['GREEN', 'YELLOW', 'RED'].includes(o.zone) ? o.zone : 'GREEN',
+        load: (load >= 1 && load <= 10) ? load : 5,
+        byAssistant: !!o.byAssistant, reason: String(o.reason || '').slice(0, 200),
+        at: Date.now(),
+      };
+      data.cards.unshift(c);
+      logIt((c.byAssistant ? 'Assistant created' : 'Created') + ' card: ' + c.title);
+      save(); return c;
+    },
+    addNote(title, body, byAssistant) {
+      const n = { id: uid('n'), title: String(title || 'Note').slice(0, 200),
+                  body: String(body || ''), byAssistant: !!byAssistant, at: Date.now() };
+      data.notes.unshift(n);
+      logIt((byAssistant ? 'Assistant saved' : 'Saved') + ' note: ' + n.title);
+      save(); return n;
+    },
+    addJournal(body, byAssistant) {
+      const j = { id: uid('j'), body: String(body || ''), byAssistant: !!byAssistant, at: Date.now() };
+      data.journal.unshift(j);
+      logIt((byAssistant ? 'Assistant added' : 'Added') + ' a journal entry');
+      save(); return j;
+    },
+    addTerm(term, definition, byAssistant) {
+      const g = { id: uid('g'), term: String(term || 'Term').slice(0, 120),
+                  definition: String(definition || ''), byAssistant: !!byAssistant, at: Date.now() };
+      data.glossary.unshift(g);
+      logIt((byAssistant ? 'Assistant defined' : 'Defined') + ' term: ' + g.term);
+      save(); return g;
+    },
+    remove(kind, id) {
+      const list = data[kind];
+      if (!Array.isArray(list)) return false;
+      const i = list.findIndex((x) => x.id === id);
+      if (i < 0) return false;
+      const gone = list.splice(i, 1)[0];
+      logIt('Deleted ' + kind.replace(/s$/, '') + ': ' +
+        (gone.title || gone.term || String(gone.body || '').slice(0, 40)));
+      save(); return true;
+    },
+    counts() {
+      return { documents: data.documents.length, cards: data.cards.length,
+               notes: data.notes.length, journal: data.journal.length,
+               glossary: data.glossary.length };
+    },
+    total() {
+      const c = this.counts();
+      return c.documents + c.cards + c.notes + c.journal + c.glossary;
+    },
+  };
+})();
+
+/* Search every KB store with the console's own retrieval kernel:
+ * documents are chunk-ranked exactly like attachments; cards, notes,
+ * journal entries and glossary terms score whole, since each is already
+ * a small unit. Same terms() and scoreText() as everything else — one
+ * retrieval engine, five more places it looks. */
+function kbSearch(query, limit = 8) {
+  const ts = terms(query);
+  if (!ts.length) return [];
+  const hits = [];
+  const push = (kind, id, title, text, extraFields) => {
+    const s = scoreText(title + ' ' + text, ts);
+    if (s > 0) hits.push(Object.assign({ kind, id, title, text, score: s }, extraFields || {}));
+  };
+  kb.data.documents.forEach((d) => push('document', d.id, d.title, d.body));
+  kb.data.cards.forEach((c) => push('card', c.id, c.title, c.body, { coord: c.coord, zone: c.zone }));
+  kb.data.notes.forEach((n) => push('note', n.id, n.title, n.body));
+  kb.data.journal.forEach((j) => {
+    let day = '';
+    try { day = new Date(j.at).toLocaleDateString(); } catch (e) { /* untitled */ }
+    push('journal', j.id, 'Journal ' + day, j.body);
+  });
+  kb.data.glossary.forEach((g) => push('term', g.id, g.term, g.definition));
+  hits.sort((a, b) => b.score - a.score);
+  return hits.slice(0, limit);
+}
+
+function kbContext(query, maxChars = 4000) {
+  const hits = kbSearch(query, 8);
+  if (!hits.length) return { text: '', names: [] };
+  const parts = [];
+  const names = [];
+  let total = 0;
+  for (const h of hits) {
+    if (total >= maxChars) break;
+    const body = h.kind === 'document'
+      ? retrieveFromText(query, h.text, 3, 1200, 150, 1800)
+      : h.text.slice(0, 900);
+    if (!body) continue;
+    const head = h.kind === 'card'
+      ? "card '" + h.title + "' at " + h.coord + ' [' + h.zone + ']'
+      : h.kind + " '" + h.title + "'";
+    let piece = "From the user's knowledge base — " + head + ':\n' + body;
+    if (total + piece.length > maxChars) piece = piece.slice(0, maxChars - total);
+    parts.push(piece);
+    total += piece.length;
+    if (names.length < 4) names.push(h.title);
+  }
+  return { text: parts.join('\n\n'), names: names };
+}
+
+/* Tools the pod assistant may call. Each one executes HERE, on the KB
+ * stores in this browser — nowhere else — and pushes a plain-language
+ * record into `actions` so the turn can report what was done. */
+function kbAssistantTools(actions) {
+  return [
+    { name: 'searchKnowledgeBase',
+      description: "Search the user's own knowledge base — library documents, note cards, notes, journal, glossary — by keywords. Returns ranked hits with kind, title, cell/zone where present, and a passage. Use it whenever the question might touch the user's own material.",
+      inputSchema: { type: 'object',
+        properties: { query: { type: 'string', description: 'keywords to look up' } },
+        required: ['query'] },
+      execute: (a) => kbSearch(String((a && a.query) || ''), 8).map((h) => ({
+        kind: h.kind, title: h.title, coord: h.coord || '', zone: h.zone || '',
+        passage: h.kind === 'document'
+          ? retrieveFromText(String((a && a.query) || ''), h.text, 2, 1200, 150, 1200)
+          : h.text.slice(0, 600),
+      })) },
+    { name: 'createCard',
+      description: "Create a note card in the user's knowledge base. coord is a cell A1–Z999 (defaults to D3); zone is GREEN, YELLOW or RED; load is cognitive load 1–10. Always pass a one-sentence reason for the cell you chose.",
+      inputSchema: { type: 'object',
+        properties: { title: { type: 'string' }, body: { type: 'string' },
+          coord: { type: 'string' }, zone: { type: 'string' },
+          load: { type: 'number' }, reason: { type: 'string' } },
+        required: ['title'] },
+      execute: (a) => {
+        const c = kb.addCard(Object.assign({}, a, { byAssistant: true }));
+        actions.push('card "' + c.title + '" at ' + c.coord);
+        kbRender();
+        return { ok: true, id: c.id, coord: c.coord };
+      } },
+    { name: 'saveNote',
+      description: "Save a note in the user's knowledge base.",
+      inputSchema: { type: 'object',
+        properties: { title: { type: 'string' }, body: { type: 'string' } },
+        required: ['body'] },
+      execute: (a) => {
+        const n = kb.addNote(a && a.title, a && a.body, true);
+        actions.push('note "' + n.title + '"');
+        kbRender();
+        return { ok: true, id: n.id };
+      } },
+    { name: 'addJournalEntry',
+      description: "Add a journal entry to the user's knowledge base — what happened or what was learned this session.",
+      inputSchema: { type: 'object',
+        properties: { body: { type: 'string' } }, required: ['body'] },
+      execute: (a) => {
+        const j = kb.addJournal(a && a.body, true);
+        actions.push('journal entry');
+        kbRender();
+        return { ok: true, id: j.id };
+      } },
+    { name: 'addGlossaryTerm',
+      description: "Add a term and its definition to the user's glossary.",
+      inputSchema: { type: 'object',
+        properties: { term: { type: 'string' }, definition: { type: 'string' } },
+        required: ['term', 'definition'] },
+      execute: (a) => {
+        const g = kb.addTerm(a && a.term, a && a.definition, true);
+        actions.push('term "' + g.term + '"');
+        kbRender();
+        return { ok: true, id: g.id };
+      } },
+  ];
+}
+
+/* ---------- transcript ------------------------------------------------ */
+
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, (c) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[c]));
+}
+
+/* A deliberately small markdown renderer (ported from the desktop web
+ * shell). Everything is escaped first, so no assistant output can inject
+ * markup — the reply is data, never trusted as HTML. */
+function markdown(src) {
+  const blocks = [];
+  let text = esc(src).replace(/```([\s\S]*?)(?:```|$)/g, (_m, code) => {
+    blocks.push(code.replace(/^[^\n]*\n/, ''));
+    return ' BLOCK' + (blocks.length - 1) + ' ';
+  });
+
+  text = text
+    .replace(/`([^`\n]+)`/g, '<code>$1</code>')
+    .replace(/\*\*\*(\S(?:[\s\S]*?\S)?)\*\*\*/g, '<strong><em>$1</em></strong>')
+    .replace(/\*\*(\S(?:[\s\S]*?\S)?)\*\*/g, '<strong>$1</strong>')
+    .replace(/(^|[^*])\*(\S(?:[^*]*?\S)?)\*/g, '$1<em>$2</em>');
+
+  const out = [];
+  let list = null;
+  const closeList = () => { if (list) { out.push('</' + list + '>'); list = null; } };
+
+  for (const raw of text.split('\n')) {
+    const line = raw.trimEnd();
+    const heading = line.match(/^(#{1,6})\s+(.*)$/);
+    const bullet = line.match(/^\s*[-*+]\s+(.*)$/);
+    const number = line.match(/^\s*\d+[.)]\s+(.*)$/);
+    const quote = line.match(/^\s*>\s?(.*)$/);
+
+    if (bullet || number) {
+      const want = bullet ? 'ul' : 'ol';
+      if (list !== want) { closeList(); out.push('<' + want + '>'); list = want; }
+      out.push('<li>' + (bullet || number)[1] + '</li>');
+    } else if (heading) {
+      closeList();
+      out.push('<h3>' + heading[2] + '</h3>');
+    } else if (quote) {
+      closeList();
+      out.push('<blockquote>' + quote[1] + '</blockquote>');
+    } else if (line.trim() === '') {
+      closeList();
+    } else {
+      closeList();
+      out.push('<p>' + line + '</p>');
+    }
+  }
+  closeList();
+
+  return out.join('').replace(/ BLOCK(\d+) /g,
+    (_m, i) => '<pre><code>' + blocks[Number(i)] + '</code></pre>');
+}
+
+function turn(who, body, cls) {
+  const el = document.createElement('article');
+  el.className = 'turn ' + (cls || '');
+  el.innerHTML = '<div class="who">' + esc(who) + '</div>' +
+                 '<div class="body">' + body + '</div>';
+  log.appendChild(el);
+  log.scrollTop = log.scrollHeight;
+  return el;
+}
+
+function note(text, bad) {
+  const el = document.createElement('p');
+  el.className = 'note' + (bad ? ' bad' : '');
+  el.textContent = text;
+  log.appendChild(el);
+  log.scrollTop = log.scrollHeight;
+}
+
+/* ---------- session state --------------------------------------------- */
+
+let zone = store.getState('current_zone', 'GREEN');
+if (!(zone in TONES)) zone = 'GREEN';
+
+let attachment = null;       // {name, text} — in memory for the session
+let lastReply = '';
+let lastSpeakable = '';
+let lastTurn = null;
+let recording = false;
+let speaking = false;
+let busyCtl = null;          // AbortController for the in-flight pod call
+
+const ZONE_MEANING = { GREEN: 'active', YELLOW: 'analytical', RED: 'archival' };
+
+function changeZone(next) {
+  const up = String(next || '').trim().toUpperCase();
+  if (up in TONES) {
+    zone = up;
+    store.setState('current_zone', zone);   // persists across restarts
+    return 'Mode changed to ' + zone;
+  }
+  return 'Invalid mode. Use: Green, Yellow, or Red';
+}
+
+function setZone(z) {
+  document.querySelectorAll('.mode').forEach((b) => {
+    b.setAttribute('aria-checked', b.dataset.zone === z ? 'true' : 'false');
+  });
+}
+
+/* ---------- the pod assistant ------------------------------------------
+ * Claude, asked by this page at runtime, in the seat LLMBrain held on
+ * the desktop. Same shape: available or not, honest fallback when not.
+ * The viewer's browser asks permission on the first call, and the call
+ * spends the viewer's own usage — never called except on Send. */
+
+let pod;                     // undefined = checking, null = unavailable, fn = ready
+let podTried = false;        // has any call run (consent settled)?
+let podLastError = '';
+
+const podReady = (window.claude && typeof window.claude.use === 'function')
+  ? window.claude.use('sample').then((fn) => { pod = fn || null; return pod; })
+      .catch(() => { pod = null; return null; })
+  : Promise.resolve(null).then(() => { pod = null; return null; });
+
+/* Mode → sampling temperature became mode → model tier: bolder-and-fast
+ * when active, thinks-first when analytical or archival. */
+const ZONE_TIER = { GREEN: 'quick', YELLOW: 'default', RED: 'default' };
+
+/* ---------- the Google Drive bridge ------------------------------------
+ * The desktop console's ☁ source returns: the viewer's own claude.ai
+ * Google Drive connector, reached through the page's mcp capability.
+ * The assistant never touches Drive — the page searches, reads, ranks,
+ * and hands passages in, the same contract as every other source. Same
+ * posture as the pod: available or not, and honest when not. */
+
+let mcp;                     // undefined = checking, null = unavailable
+const mcpReady = (window.claude && typeof window.claude.use === 'function')
+  ? window.claude.use('mcp').then((ns) => { mcp = ns || null; return mcp; })
+      .catch(() => { mcp = null; return null; })
+  : Promise.resolve(null).then(() => { mcp = null; return null; });
+
+const DRIVE_SERVER = 'Google Drive';
+
+function driveQuery(userText) {
+  const ts = terms(userText).slice(0, 6);
+  if (!ts.length) return null;
+  return ts.map((w) => `fullText contains '${w}'`).join(' or ');
+}
+
+async function driveContext(userText) {
+  const q = driveQuery(userText);
+  if (!q) return { text: '', names: [] };
+  const res = await mcp.callTool(DRIVE_SERVER, 'search_files',
+    { query: q, pageSize: 5, snippetVerbosity: 'BRIEF' },
+    { cache: { staleTime: 60000 } });
+  const files = (res && res.payload && res.payload.files) || [];
+  if (!files.length) return { text: '', names: [] };
+
+  const ts = terms(userText);
+  const ranked = files
+    .map((f) => ({
+      id: f.id,
+      name: f.title || 'file',
+      score: scoreText((f.title || '') + ' ' + (f.contentSnippet || ''), ts),
+    }))
+    .filter((f) => f.id)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 2);
+
+  const parts = [];
+  const names = [];
+  for (const f of ranked) {
+    try {
+      const r = await mcp.callTool(DRIVE_SERVER, 'read_file_content',
+        { fileId: f.id }, { cache: { staleTime: 60000 } });
+      const body = r && r.payload && r.payload.fileContent;
+      if (!body) continue;
+      const passage = retrieveFromText(userText, String(body), 4, 1200, 150, 2500);
+      if (!passage) continue;
+      parts.push(`From the user's Google Drive file '${f.name}':\n` + passage);
+      names.push(f.name);
+    } catch (e) { /* one unreadable file must not sink the turn */ }
+  }
+  return { text: parts.join('\n\n'), names: names };
+}
+
+/* Each failure code has a different correct fix — say which. Shared by
+   every connector-backed source. */
+function connectorErrorNote(name, e) {
+  const code = (e && e.code) || 'upstream_error';
+  if (code === 'server_not_connected') {
+    return `No ${name} connector for this account — add ${name} under ` +
+           'Settings → Connectors in claude.ai, then try again.';
+  }
+  if (code === 'needs_reauth') {
+    return `${name} needs reconnecting — Settings → Connectors in claude.ai.`;
+  }
+  if (code === 'not_in_manifest') {
+    return `${name} access was declined for this page, so it does nothing ` +
+           'in this view. Reload to be asked again.';
+  }
+  if (code === 'selection_required') {
+    return `More than one ${name} is connected — choose one in the prompt, ` +
+           'then try again.';
+  }
+  if (e && e.retryable) {
+    return `${name} did not answer just now — worth one more try in a moment.`;
+  }
+  return `${name} error (${code}) — answering without it.`;
+}
+
+/* Live web search through the viewer's Exa connector — the seat the
+   desktop's DuckDuckGo path held. The results arrive as titled text
+   blocks, which is already the shape a grounding context wants. */
+async function webContext(userText) {
+  const res = await mcp.callTool('Exa', 'web_search_exa',
+    { query: userText.slice(0, 400),
+      objective: "Ground a chat assistant's next answer to the user's " +
+                 'message; prefer pages that state the relevant facts plainly.',
+      numResults: 4 },
+    { cache: { staleTime: 60000 } });
+  const p = res && res.payload;
+  let body = typeof p === 'string' ? p : (p ? JSON.stringify(p) : '');
+  body = (body || '').slice(0, 5000).trim();
+  if (!body) return '';
+  return 'Web search results (already fetched by the console; cite pages ' +
+         'by title):\n' + body;
+}
+
+const TOOLS_WHEN_GROUNDED =
+  'The console has ALREADY searched the web, the user\'s files and/or ' +
+  'their knowledge base for this message; the results are in the context ' +
+  "below under 'Additional context (web/files/knowledge base)'. Use them " +
+  'and cite the sources by name or page title. Do not say you cannot ' +
+  'search — the search has been done for you.';
+const TOOLS_WHEN_NOT =
+  'You cannot browse the web yourself, but the console can search for ' +
+  'you. If the user asks you to search, look something up, or wants ' +
+  'current information, do NOT say you are unable to: tell them to tick ' +
+  "the 🌐 Web search box or say 'search the web for …', and the results " +
+  'will be provided on the next message. ☁ Google Drive and 📎 Upload ' +
+  'document work the same way for their own files, and 🗂 Knowledge ' +
+  'grounds answers in their own knowledge base.';
+
+/* Standing line about the knowledge base tools — they ride on every pod
+   call, so the assistant is always told what they are and when to write. */
+const KB_TOOL_RULES =
+  "You also have tools for the user's KNOWLEDGE BASE — their library " +
+  'documents, note cards (each at a cell A1–Z999 with a GREEN/YELLOW/RED ' +
+  'zone and a cognitive load 1–10), notes, journal and glossary, stored ' +
+  'in this console. Call searchKnowledgeBase whenever a question might ' +
+  'touch their own material, and answer from what it returns, citing the ' +
+  'item titles. When the user asks you to remember something, capture or ' +
+  'summarize into a card, save a note, journal the session, or define a ' +
+  'term, call createCard, saveNote, addJournalEntry or addGlossaryTerm, ' +
+  'then confirm in one short sentence what you did and where it went. ' +
+  'Write to the knowledge base only when the user asks for it or clearly ' +
+  'wants something kept.';
+
+function podRules(tone, glyphMeanings, context, grounded) {
+  const voice = tone.voice || 'clear and direct';
+  let tokenLine = '';
+  if (glyphMeanings.length) {
+    tokenLine = '\nThe user included these operator tokens; factor in their intent: ' +
+      glyphMeanings.map((m) => `${m.glyph} (${m.fn})`).join(', ') + '.';
+  }
+  return 'You are Strata, the assistant of Strata Console — this is the browser ' +
+    "build, where you are the pod assistant sitting in the local model's seat. " +
+    'You help with conversation, planning, writing, and code.\n' +
+    (grounded ? TOOLS_WHEN_GROUNDED : TOOLS_WHEN_NOT) + '\n' +
+    KB_TOOL_RULES + '\n' +
+    `Operating mode: ${zone} — respond in a manner that is ${voice}.` + tokenLine + '\n' +
+    `Recent context — ${context}\n` +
+    'Any earlier user/assistant turns included before the newest message are ' +
+    'the real recent conversation: recall and use them freely when the user ' +
+    'refers back to something said before.\n' +
+    'Be accurate and concise. Format in plain markdown (headings, lists, bold, ' +
+    "inline code, fenced code). If something isn't in the context or you are " +
+    'unsure, say so plainly instead of inventing details. When asked for code, ' +
+    'return clean, working code.';
+}
+
+function podStateLabel() {
+  if (pod === undefined) return '🧵 pod check…';
+  return pod ? '🧠 pod assistant online' : '🧩 template mode';
+}
+
+function getStatus() {
+  return `Mode: ${zone} | Context entries: ${store.threadCount()} | ${podStateLabel()}`;
+}
+
+/* ---------- slash command execution ------------------------------------ */
+
+function clearReport(cleared, archived) {
+  const t = (n) => n + ' turn' + (n === 1 ? '' : 's');
+  return `🧹 Cleared ${t(cleared)} from the window and from what the assistant ` +
+         `recalls. Nothing was deleted — ${t(archived)} stay archived below the floor.`;
+}
+
+function statusText() {
+  const lines = [
+    '### Status', '',
+    `- **Mode**: ${zone} — ${ZONE_MEANING[zone]}`,
+    `- **Assistant**: ${pod === undefined ? 'pod check running' : pod
+      ? 'pod assistant online (tier by mode: GREEN→quick, YELLOW/RED→default)'
+      : 'template mode — the deterministic engine answers'}`,
+    `- **Context entries**: ${store.threadCount()} in play, ${store.archivedCount()} stored all-time`,
+    `- **Conversation recall**: ${store.recallTurns().length} recent turn(s) go with the next message`,
+    `- **Sources**: 🌐 web search ${$('src-web').checked ? 'ON' : 'off'} · ☁ Google Drive ${$('src-drive').checked ? 'ON' : 'off'} · 🗂 knowledge base ${$('src-kb').checked ? 'ON' : 'off'} (${kb.total()} item${kb.total() === 1 ? '' : 's'}) · 📎 ${attachment ? attachment.name : 'no attachment'}`,
+  ];
+  if (podLastError) lines.push(`- **Last pod error**: \`${podLastError}\``);
+  return lines.join('\n');
+}
+
+function kbStatusText() {
+  const c = kb.counts();
+  const lines = [
+    '### Knowledge Base', '',
+    `- **📚 Library**: ${c.documents} document${c.documents === 1 ? '' : 's'}`,
+    `- **🗃 Cards**: ${c.cards}`,
+    `- **📝 Notes**: ${c.notes}`,
+    `- **📓 Journal**: ${c.journal} entr${c.journal === 1 ? 'y' : 'ies'}`,
+    `- **📖 Glossary**: ${c.glossary} term${c.glossary === 1 ? '' : 's'}`,
+    `- **Source**: ${$('src-kb').checked
+      ? '🗂 ON — searched before every answer, no cloud call'
+      : '🗂 off — tick 🗂 Knowledge to ground answers in it'}`,
+  ];
+  const recent = kb.data.log.slice(0, 5);
+  if (recent.length) {
+    lines.push('', '**Recent activity**');
+    recent.forEach((l) => lines.push('- ' + l.text));
+  }
+  return lines.join('\n');
+}
+
+function runCommand(text) {
+  const c = parseCommand(text);
+  if (c === null) return { handled: false };
+  if (!c.known) {
+    return { handled: true, message: `Unknown command: ${text.trim()}. Try /help`, bad: true };
+  }
+  switch (c.name) {
+    case 'status':
+      return { handled: true, markdown: true, message: statusText(), status: getStatus() };
+    case 'lexicon':
+      return { handled: true, markdown: true, message: lexiconText() };
+    case 'mode': {
+      if (!c.argument) return { handled: true, message: 'Usage: /mode green | yellow | red', bad: true };
+      const msg = changeZone(c.argument);
+      return { handled: true, message: msg, bad: msg.startsWith('Invalid'),
+               zone: zone, status: getStatus() };
+    }
+    case 'kb': {
+      const arg = c.argument.toLowerCase();
+      if (arg === 'open')  { kbToggle(true);  return { handled: true, message: '🗂 Knowledge base open.' }; }
+      if (arg === 'close') { kbToggle(false); return { handled: true, message: '🗂 Knowledge base closed.' }; }
+      return { handled: true, markdown: true, message: kbStatusText() };
+    }
+    case 'clear': {
+      const cleared = store.raiseFloor();
+      return { handled: true, clearLog: true,
+               message: clearReport(cleared, store.archivedCount()), status: getStatus() };
+    }
+    case 'port':
+      return { handled: true, markdown: true, message: PORT_NOTES };
+    case 'help':
+      return { handled: true, markdown: true, message: helpText() };
+  }
+  return { handled: true, message: `Unknown command: ${text.trim()}. Try /help`, bad: true };
+}
+
+/* ---------- reading size ---------------------------------------------- */
+
+let size = Number(store.getState('web_font_size', 17)) || 17;
+function applySize(next) {
+  size = Math.max(12, Math.min(34, next));
+  document.documentElement.style.setProperty('--text', size + 'px');
+  $('size').value = size + 'px';
+  store.setState('web_font_size', size);
+}
+
+/* ---------- read-along (ported; speakable computed locally) ------------ */
+
+const SENTENCE_END = /[.!?…]["')\]]*\s*/;
+
+let readIndex = -1;
+let readSpans = [];
+let readQueue = [];
+let readTurn = null;
+
+function splitSentences(text) {
+  const out = [];
+  let rest = text;
+  while (rest) {
+    const m = rest.match(SENTENCE_END);
+    if (!m) { out.push({ text: rest, ends: false }); break; }
+    const cut = m.index + m[0].length;
+    out.push({ text: rest.slice(0, cut), ends: true });
+    rest = rest.slice(cut);
+  }
+  return out;
+}
+
+function wrapSentences(root) {
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  const nodes = [];
+  for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+    if (n.nodeValue.trim()) nodes.push(n);
+  }
+
+  const spans = [];
+  const texts = [];
+  let index = 0;
+
+  for (const node of nodes) {
+    if (node.parentElement && node.parentElement.closest('pre')) continue;
+    const frag = document.createDocumentFragment();
+    for (const piece of splitSentences(node.nodeValue)) {
+      const span = document.createElement('span');
+      span.className = 's';
+      span.dataset.i = String(index);
+      span.textContent = piece.text;
+      frag.appendChild(span);
+      if (!spans[index]) spans[index] = [];
+      spans[index].push(span);
+      texts[index] = (texts[index] || '') + piece.text;
+      if (piece.ends) index += 1;
+    }
+    node.parentNode.replaceChild(frag, node);
+  }
+  return { spans: spans, texts: texts.map((t) => (t || '').trim()) };
+}
+
+function clearHighlight() {
+  document.querySelectorAll('.s.reading').forEach((e) => e.classList.remove('reading'));
+  document.querySelectorAll('.w.now').forEach((e) => e.classList.remove('now'));
+}
+
+function highlight(i) {
+  clearHighlight();
+  const group = readSpans[i];
+  if (!group || !group.length) return;
+  group.forEach((e) => e.classList.add('reading'));
+  const first = group[0];
+  const box = first.getBoundingClientRect();
+  const view = log.getBoundingClientRect();
+  if (box.top < view.top || box.bottom > view.bottom) {
+    const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    first.scrollIntoView({ block: 'center', behavior: reduce ? 'auto' : 'smooth' });
+  }
+}
+
+function wordify(i) {
+  const group = readSpans[i];
+  if (!group || !group.length || group[0].querySelector('.w')) return;
+  for (const span of group) {
+    const frag = document.createDocumentFragment();
+    for (const part of span.textContent.split(/(\s+)/)) {
+      if (!part) continue;
+      if (/^\s+$/.test(part)) {
+        frag.appendChild(document.createTextNode(part));
+        continue;
+      }
+      const w = document.createElement('span');
+      w.className = 'w';
+      w.textContent = part;
+      frag.appendChild(w);
+    }
+    span.textContent = '';
+    span.appendChild(frag);
+  }
+}
+
+function highlightWord(i, charIndex) {
+  const group = readSpans[i];
+  if (!group) return;
+  const words = [];
+  group.forEach((s) => s.querySelectorAll('.w').forEach((w) => words.push(w)));
+  if (!words.length) return;
+
+  const sentence = (readQueue[i] && readQueue[i].text) || '';
+  let seen = 0;
+  let target = words[0];
+  for (const w of words) {
+    const start = sentence.indexOf(w.textContent, seen);
+    if (start < 0) continue;
+    seen = start + w.textContent.length;
+    if (start <= charIndex && charIndex < seen) { target = w; break; }
+  }
+  document.querySelectorAll('.w.now').forEach((e) => e.classList.remove('now'));
+  target.classList.add('now');
+}
+
+function setRead(on) {
+  const b = $('read');
+  b.setAttribute('aria-pressed', on ? 'true' : 'false');
+  b.innerHTML = on ? '<span aria-hidden="true">■</span> Stop'
+                   : '<span aria-hidden="true">🔊</span> Read';
+}
+
+function stopReading() {
+  if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+  speaking = false;
+  readIndex = -1;
+  clearHighlight();
+  if (readTurn) readTurn.classList.remove('reading-on');
+  setRead(false);
+}
+
+function speakFrom(start) {
+  if (!('speechSynthesis' in window) || !readQueue.length) return;
+  window.speechSynthesis.cancel();
+  speaking = true;
+  setRead(true);
+  if (readTurn) readTurn.classList.add('reading-on');
+
+  let last = -1;
+  for (let i = start; i < readQueue.length; i += 1) {
+    if (readQueue[i] && readQueue[i].spoken.trim()) last = i;
+  }
+  if (last < 0) { stopReading(); return; }
+
+  for (let i = start; i < readQueue.length; i += 1) {
+    const item = readQueue[i];
+    if (!item || !item.spoken.trim()) continue;
+    const utter = new SpeechSynthesisUtterance(item.spoken);
+    utter.onstart = () => {
+      readIndex = i;
+      highlight(i);
+      if (item.matches) wordify(i);
+    };
+    if (item.matches) {
+      utter.onboundary = (e) => highlightWord(i, e.charIndex || 0);
+    }
+    if (i === last) utter.onend = () => stopReading();
+    utter.onerror = () => stopReading();
+    window.speechSynthesis.speak(utter);
+  }
+}
+
+function speakPlain(text) {
+  if (!text || !('speechSynthesis' in window)) return;
+  window.speechSynthesis.cancel();
+  const utter = new SpeechSynthesisUtterance(text);
+  utter.onstart = () => { speaking = true; setRead(true); };
+  utter.onend = () => { speaking = false; setRead(false); };
+  utter.onerror = () => { speaking = false; setRead(false); };
+  window.speechSynthesis.speak(utter);
+}
+
+function readAlong(turnEl, fallbackText) {
+  if (!('speechSynthesis' in window)) {
+    note('This window has no speech engine.', true);
+    return;
+  }
+  const body = turnEl && turnEl.querySelector('.body');
+  if (!body) { speakPlain(fallbackText); return; }
+
+  readTurn = turnEl;
+  const wrapped = wrapSentences(body);
+  readSpans = wrapped.spans;
+  const texts = wrapped.texts;
+  if (!texts.filter((t) => t).length) { speakPlain(fallbackText); return; }
+
+  /* The desktop shell asked Python for the spoken form of each sentence;
+     here the same kernel runs locally, so alignment is still exact. */
+  readQueue = texts.map((t) => {
+    const shown = t || '';
+    const spoken = speakable(shown);
+    return { text: shown, spoken: spoken, matches: spoken === shown };
+  });
+
+  readSpans.forEach((group) => {
+    if (!group) return;
+    group.forEach((span) => {
+      span.addEventListener('click', () => speakFrom(Number(span.dataset.i)));
+    });
+  });
+
+  speakFrom(0);
+}
+
+/* ---------- knowledge base UI ------------------------------------------
+ * A drawer with the Study Workstation's five tabs. Purely additive: it
+ * renders into its own section and touches nothing the console already
+ * owns. Everything here is escaped through the same esc() the transcript
+ * uses — stored material is data, never trusted as HTML. */
+
+const KB_TABS = [
+  ['library',  '📚 Library'],
+  ['cards',    '🗃 Cards'],
+  ['notes',    '📝 Notes'],
+  ['journal',  '📓 Journal'],
+  ['glossary', '📖 Glossary'],
+];
+let kbTab = 'library';
+let kbOpenState = false;
+
+function kbToggle(open) {
+  kbOpenState = (open === undefined) ? !kbOpenState : !!open;
+  $('kb-panel').hidden = !kbOpenState;
+  $('kb-open').setAttribute('aria-expanded', kbOpenState ? 'true' : 'false');
+  if (kbOpenState) kbRender(); else kbBadge();
+}
+
+function kbEl(tag, cls, html) {
+  const el = document.createElement(tag);
+  if (cls) el.className = cls;
+  if (html !== undefined) el.innerHTML = html;
+  return el;
+}
+
+function kbBtn(label, fn) {
+  const b = kbEl('button', 'ctl');
+  b.type = 'button';
+  b.textContent = label;
+  b.style.minHeight = '36px';
+  b.style.padding = '6px 12px';
+  b.style.fontSize = '.85em';
+  b.addEventListener('click', fn);
+  return b;
+}
+
+function kbWhen(at) {
+  try { return new Date(at).toLocaleString(); } catch (e) { return ''; }
+}
+
+function kbItem(title, metaHtml, body, onDelete) {
+  const el = kbEl('div', 'kb-item');
+  el.appendChild(kbEl('h4', '', esc(title)));
+  if (metaHtml) el.appendChild(kbEl('div', 'kb-meta', metaHtml));
+  if (body) el.appendChild(kbEl('div', 'kb-body', esc(String(body).slice(0, 700))));
+  const row = kbEl('div', 'kb-row');
+  row.appendChild(kbBtn('Delete', onDelete));
+  el.appendChild(row);
+  return el;
+}
+
+function kbBadge() {
+  const btn = $('kb-open');
+  if (!btn) return;
+  const n = kb.total();
+  btn.innerHTML = '<span aria-hidden="true">🗂</span> Knowledge Base' +
+    (n ? ' (' + n + ')' : '');
+}
+
+function kbRender() {
+  const panel = $('kb-panel');
+  if (!panel || panel.hidden) { kbBadge(); return; }
+  const c = kb.counts();
+  const countOf = { library: c.documents, cards: c.cards, notes: c.notes,
+                    journal: c.journal, glossary: c.glossary };
+  const tabs = panel.querySelector('.kb-tabs');
+  tabs.innerHTML = '';
+  KB_TABS.forEach(([id, label]) => {
+    const b = kbEl('button', 'kb-tab');
+    b.type = 'button';
+    b.setAttribute('role', 'tab');
+    b.setAttribute('aria-selected', kbTab === id ? 'true' : 'false');
+    b.textContent = label + (countOf[id] ? ' (' + countOf[id] + ')' : '');
+    b.addEventListener('click', () => { kbTab = id; kbRender(); });
+    tabs.appendChild(b);
+  });
+  const body = $('kb-body');
+  body.innerHTML = '';
+  if (kbTab === 'library') kbRenderLibrary(body);
+  else if (kbTab === 'cards') kbRenderCards(body);
+  else if (kbTab === 'notes') kbRenderNotes(body);
+  else if (kbTab === 'journal') kbRenderJournal(body);
+  else kbRenderGlossary(body);
+  kbBadge();
+}
+
+function kbRenderLibrary(body) {
+  const form = kbEl('div', 'kb-form');
+  form.innerHTML =
+    '<label for="kb-doc-title">Title</label>' +
+    '<input type="text" id="kb-doc-title" placeholder="e.g. Chapter 3 — the box model">' +
+    '<label for="kb-doc-body">Text (paste a passage)</label>' +
+    '<textarea id="kb-doc-body"></textarea>';
+  const row = kbEl('div', 'kb-row');
+  row.appendChild(kbBtn('Add to library', () => {
+    const t = $('kb-doc-title').value.trim();
+    const b = $('kb-doc-body').value;
+    if (!b.trim()) { note('🗂 Paste some text first.', true); return; }
+    kb.addDocument(t, b);
+    note('🗂 Added to the library' + (t ? ': ' + t : '') + '.');
+    kbRender();
+  }));
+  row.appendChild(kbBtn('Upload file…', () => $('kb-file').click()));
+  form.appendChild(row);
+  body.appendChild(form);
+  if (!kb.data.documents.length) {
+    body.appendChild(kbEl('div', 'kb-empty', 'No documents yet — paste a passage or upload a text file.'));
+    return;
+  }
+  kb.data.documents.forEach((d) => {
+    const sizeKB = Math.max(1, Math.round(d.body.length / 1024));
+    body.appendChild(kbItem(d.title,
+      esc(kbWhen(d.at)) + ' · ' + sizeKB + ' KB',
+      d.body,
+      () => { kb.remove('documents', d.id); note('🗂 Document deleted: ' + d.title); kbRender(); }));
+  });
+}
+
+function kbRenderCards(body) {
+  const form = kbEl('div', 'kb-form');
+  form.innerHTML =
+    '<label for="kb-card-title">Title</label><input type="text" id="kb-card-title">' +
+    '<label for="kb-card-body">Body</label><textarea id="kb-card-body"></textarea>' +
+    '<div class="kb-row" style="align-items:flex-end">' +
+    '<div style="flex:1 1 90px"><label for="kb-card-coord">Cell (A1–Z999)</label>' +
+    '<input type="text" id="kb-card-coord" value="D3"></div>' +
+    '<div style="flex:1 1 110px"><label for="kb-card-zone">Zone</label>' +
+    '<select id="kb-card-zone"><option>GREEN</option><option>YELLOW</option><option>RED</option></select></div>' +
+    '<div style="flex:1 1 90px"><label for="kb-card-load">Load (1–10)</label>' +
+    '<input type="text" id="kb-card-load" value="5"></div>' +
+    '</div>';
+  const row = kbEl('div', 'kb-row');
+  row.appendChild(kbBtn('Add card', () => {
+    const t = $('kb-card-title').value.trim();
+    if (!t) { note('🗂 A card needs a title.', true); return; }
+    const c = kb.addCard({
+      title: t,
+      body: $('kb-card-body').value,
+      coord: $('kb-card-coord').value.trim(),
+      zone: $('kb-card-zone').value,
+      load: parseInt($('kb-card-load').value, 10),
+    });
+    note('🗂 Card added at ' + c.coord + ': ' + c.title);
+    kbRender();
+  }));
+  form.appendChild(row);
+  body.appendChild(form);
+  if (!kb.data.cards.length) {
+    body.appendChild(kbEl('div', 'kb-empty', 'No cards yet.'));
+    return;
+  }
+  kb.data.cards.forEach((c) => {
+    const meta = '<span class="kb-coord">' + esc(c.coord) + '</span>' +
+      '<span class="kb-zone ' + esc(c.zone) + '">' + esc(c.zone) + '</span>' +
+      '<span>load ' + c.load + '/10</span>' +
+      (c.byAssistant
+        ? '<span>🤖 assistant' + (c.reason ? ' — ' + esc(c.reason) : '') + '</span>'
+        : '');
+    body.appendChild(kbItem(c.title, meta, c.body,
+      () => { kb.remove('cards', c.id); note('🗂 Card deleted: ' + c.title); kbRender(); }));
+  });
+}
+
+function kbRenderNotes(body) {
+  const form = kbEl('div', 'kb-form');
+  form.innerHTML =
+    '<label for="kb-note-title">Title</label><input type="text" id="kb-note-title">' +
+    '<label for="kb-note-body">Note</label><textarea id="kb-note-body"></textarea>';
+  const row = kbEl('div', 'kb-row');
+  row.appendChild(kbBtn('Add note', () => {
+    const b = $('kb-note-body').value;
+    if (!b.trim()) { note('🗂 Write the note first.', true); return; }
+    const n = kb.addNote($('kb-note-title').value.trim(), b);
+    note('🗂 Note saved: ' + n.title);
+    kbRender();
+  }));
+  form.appendChild(row);
+  body.appendChild(form);
+  if (!kb.data.notes.length) {
+    body.appendChild(kbEl('div', 'kb-empty', 'No notes yet.'));
+    return;
+  }
+  kb.data.notes.forEach((n) => {
+    body.appendChild(kbItem(n.title,
+      esc(kbWhen(n.at)) + (n.byAssistant ? ' · 🤖 assistant' : ''),
+      n.body,
+      () => { kb.remove('notes', n.id); note('🗂 Note deleted: ' + n.title); kbRender(); }));
+  });
+}
+
+function kbRenderJournal(body) {
+  const form = kbEl('div', 'kb-form');
+  form.innerHTML =
+    '<label for="kb-journal-body">What happened / what you learned</label>' +
+    '<textarea id="kb-journal-body"></textarea>';
+  const row = kbEl('div', 'kb-row');
+  row.appendChild(kbBtn('Add entry', () => {
+    const b = $('kb-journal-body').value;
+    if (!b.trim()) { note('🗂 Write the entry first.', true); return; }
+    kb.addJournal(b);
+    note('🗂 Journal entry added.');
+    kbRender();
+  }));
+  form.appendChild(row);
+  body.appendChild(form);
+  if (!kb.data.journal.length) {
+    body.appendChild(kbEl('div', 'kb-empty', 'No journal entries yet.'));
+    return;
+  }
+  kb.data.journal.forEach((j) => {
+    body.appendChild(kbItem(kbWhen(j.at),
+      j.byAssistant ? '🤖 assistant' : '',
+      j.body,
+      () => { kb.remove('journal', j.id); note('🗂 Journal entry deleted.'); kbRender(); }));
+  });
+}
+
+function kbRenderGlossary(body) {
+  const form = kbEl('div', 'kb-form');
+  form.innerHTML =
+    '<label for="kb-term">Term</label><input type="text" id="kb-term">' +
+    '<label for="kb-def">Definition</label><textarea id="kb-def"></textarea>';
+  const row = kbEl('div', 'kb-row');
+  row.appendChild(kbBtn('Add term', () => {
+    const t = $('kb-term').value.trim();
+    if (!t) { note('🗂 Name the term first.', true); return; }
+    const g = kb.addTerm(t, $('kb-def').value);
+    note('🗂 Term added: ' + g.term);
+    kbRender();
+  }));
+  form.appendChild(row);
+  body.appendChild(form);
+  if (!kb.data.glossary.length) {
+    body.appendChild(kbEl('div', 'kb-empty', 'No glossary terms yet.'));
+    return;
+  }
+  kb.data.glossary.forEach((g) => {
+    body.appendChild(kbItem(g.term,
+      esc(kbWhen(g.at)) + (g.byAssistant ? ' · 🤖 assistant' : ''),
+      g.definition,
+      () => { kb.remove('glossary', g.id); note('🗂 Term deleted: ' + g.term); kbRender(); }));
+  });
+}
+
+function kbHandleFile(file) {
+  if (!file) return;
+  const name = file.name;
+  const ext = (name.lastIndexOf('.') >= 0 ? name.slice(name.lastIndexOf('.')) : '').toLowerCase();
+  if (!TEXT_EXTS.includes(ext)) {
+    note('🗂 Couldn\'t read ' + name + ' — the library reads text formats (' +
+         TEXT_EXTS.join(' ') + ').', true);
+    return;
+  }
+  const reader = new FileReader();
+  reader.onerror = () => note('🗂 Couldn\'t read ' + name + ' — the file did not open.', true);
+  reader.onload = () => {
+    let body = String(reader.result || '');
+    if (ext === '.html' || ext === '.htm') {
+      try {
+        const doc = new DOMParser().parseFromString(body, 'text/html');
+        body = (doc.body && doc.body.textContent) || '';
+      } catch (e) { /* keep the raw text */ }
+    }
+    if (!body.trim()) {
+      note('🗂 Couldn\'t read ' + name + ' — unsupported format or empty file.', true);
+      return;
+    }
+    if (body.length > MAX_ATTACHMENT_CHARS) body = body.slice(0, MAX_ATTACHMENT_CHARS);
+    kb.addDocument(name.replace(/\.[^.]+$/, ''), body);
+    note('🗂 Added to the library: ' + name + '. It joins every search the assistant grounds in.');
+    kbRender();
+  };
+  reader.readAsText(file);
+}
+
+/* ---------- sending ---------------------------------------------------- */
+
+async function send() {
+  const box = $('msg');
+  const text = box.value.trim();
+  if (!text) return;
+
+  turn('You', markdown(text), 'me');
+  box.value = '';
+  box.style.height = 'auto';
+
+  /* A slash command is an instruction to the console, not a question for
+     the assistant. Same grammar as the desktop, one copy of it. */
+  if (text.startsWith('/')) {
+    const c = runCommand(text);
+    if (c.handled) {
+      if (c.clearLog) {
+        stopReading();
+        log.innerHTML = '';
+        lastReply = ''; lastSpeakable = ''; lastTurn = null;
+      }
+      if (c.message) {
+        if (c.markdown) lastTurn = turn('Strata', markdown(c.message));
+        else note(c.message, !!c.bad);
+      }
+      if (c.status) $('status').textContent = c.status;
+      if (c.zone) setZone(c.zone);
+      box.focus();
+      return;
+    }
+  }
+
+  /* The pipeline runs whether or not the pod assistant answers: its
+     structured output is the fallback and the telemetry. */
+  const d = classifyInput(text);
+  const routePath = route(d);
+  let context = retrieveContext();
+  const tone = TONES[zone] || TONES.GREEN;
+  const template = synthesizeTemplate(d, routePath, context, tone, zone);
+
+  /* Grounding is gathered by the page, never by the model: the attached
+     document, and — when the box is ticked — the viewer's Google Drive. */
+  let extra = attachmentContext(text, attachment).slice(0, 6000);
+  const used = [];
+  if (attachment && extra) used.push('📎 ' + attachment.name);
+
+  /* The knowledge base is the one LOCAL source: no bridge, no cloud
+     call — searched synchronously, before any connector is consulted. */
+  if ($('src-kb').checked) {
+    const kc = kbContext(text);
+    if (kc.text) {
+      extra = (extra ? extra + '\n\n' : '') + kc.text;
+      kc.names.forEach((n) => used.push('🗂 ' + n));
+    }
+  }
+
+  /* Typing "search the web for …" counts as ticking the box — the
+     desktop rule, restored now that the box is live. */
+  const useWeb = $('src-web').checked || wantsWeb(text);
+
+  const pending = turn('Strata', '<p class="thinking">thinking…</p>');
+  const pendingBody = pending.querySelector('.body');
+  $('send').disabled = true;
+
+  /* A wait with no evidence of progress cannot be told apart from a
+     hang, so the placeholder counts out loud — and the pod assistant
+     streams, which is the strongest evidence of progress there is. */
+  await podReady;
+  const firstCall = !!pod && !podTried;
+  let base = (pod ? busyLabel(!!extra, firstCall) : 'template engine').replace(/…$/, '');
+  $('status').textContent = base + '…';
+
+  const startedAt = Date.now();
+  const tick = () => {
+    const think = pending.querySelector('.thinking');
+    if (!think) return;
+    const secs = Math.floor((Date.now() - startedAt) / 1000);
+    think.textContent = secs < 1 ? base + '…' : `${base}… ${secs}s`;
+  };
+  tick();
+  const ticker = setInterval(tick, 1000);
+
+  /* Drive is consulted BEFORE the assistant runs, like every source. */
+  if ($('src-drive').checked) {
+    await mcpReady;
+    if (!mcp) {
+      note('☁ The Google Drive bridge is not available in this view — answering without it.', true);
+    } else {
+      base = '🔎 searching Google Drive';
+      tick();
+      try {
+        const dr = await driveContext(text);
+        if (dr.text) {
+          extra = (extra ? extra + '\n\n' : '') + dr.text;
+          dr.names.forEach((n) => used.push('☁ ' + n));
+        } else {
+          note('☁ Nothing in Drive matched this message — answering without it.');
+        }
+      } catch (e) {
+        note('☁ ' + connectorErrorNote('Google Drive', e), true);
+      }
+      base = (pod ? busyLabel(true, firstCall) : 'template engine').replace(/…$/, '');
+      tick();
+    }
+  }
+  if (useWeb) {
+    await mcpReady;
+    if (!mcp) {
+      note('🌐 The web-search bridge is not available in this view — answering without it.', true);
+    } else {
+      base = '🔎 searching the web';
+      tick();
+      try {
+        const wt = await webContext(text);
+        if (wt) {
+          extra = (extra ? extra + '\n\n' : '') + wt;
+          used.push('🌐 web (Exa)');
+        } else {
+          note('🌐 The search returned nothing usable — answering without it.');
+        }
+      } catch (e) {
+        note('🌐 ' + connectorErrorNote('Exa', e), true);
+      }
+      base = (pod ? busyLabel(true, firstCall) : 'template engine').replace(/…$/, '');
+      tick();
+    }
+  }
+  const fullContext = extra
+    ? context + '\n\nAdditional context (web/files/knowledge base):\n' + extra.slice(0, 12000)
+    : context;
+
+  let reply = null;
+  let streamed = false;
+  const kbActions = [];   // what the assistant wrote to the KB this turn
+
+  try {
+    if (pod) {
+      podTried = true;
+      busyCtl = new AbortController();
+      /* Standing instructions lead; the recent conversation rides in
+         the middle as real turns; the new message closes the list. */
+      const turns = [
+        { role: 'user', content: podRules(tone, d.glyphMeanings, fullContext, !!extra) },
+        ...store.recallTurns(),
+        { role: 'user', content: text },
+      ];
+      try {
+        const r = await pod(turns, {
+          cache: false,
+          signal: busyCtl.signal,
+          modelTier: ZONE_TIER[zone] || 'default',
+          /* The KB tools ride along on every call: search, plus the
+             writes — createCard, saveNote, addJournalEntry,
+             addGlossaryTerm. Each executes in this page, on this
+             browser's stores, and is logged and reported. */
+          tools: kbAssistantTools(kbActions),
+          onText: ({ text: t }) => {
+            streamed = true;
+            pending.classList.add('streaming');
+            pendingBody.innerHTML = markdown(t);
+            log.scrollTop = log.scrollHeight;
+          },
+        });
+        reply = r.text;
+        if (r.truncated) note('The answer hit the length limit — ask for less at a time.', true);
+      } catch (e) {
+        const code = (e && e.code) || 'upstream_error';
+        podLastError = code;
+        if (code === 'cancelled') {
+          reply = (e && e.text) || null;
+          note(reply ? '■ Stopped — the partial answer is kept.' : '■ Stopped.');
+        } else if (['not_granted', 'sampling_disabled', 'not_declared',
+                    'capability_disabled', 'capability_removed'].includes(code)) {
+          pod = null;
+          note('🧩 The pod assistant is not available in this view (' + code +
+               ') — template mode from here on.', true);
+        } else if (code === 'refused') {
+          reply = null;   // any partial is withdrawn; do not keep it
+          note('The pod assistant declined this input — the template engine answered instead.', true);
+        } else if (code === 'rate_limited') {
+          reply = (e && e.text) || null;
+          note('The pod assistant is rate-limited right now — try again in a little while.', true);
+        } else {
+          reply = (e && e.text) || null;
+          note('Pod assistant error (' + code + ') — ' +
+               (reply ? 'keeping the partial answer.' : 'the template engine answered instead.'), true);
+        }
+      } finally {
+        busyCtl = null;
+      }
+    }
+
+    /* Template mode: the deterministic four-part output, exactly as the
+       desktop composes it when the model is away. */
+    if (reply === null || reply === undefined || !String(reply).trim()) {
+      reply = [template.summary, template.description, template.comments]
+        .filter(Boolean).join(' ');
+    }
+
+    pending.classList.remove('streaming');
+    pendingBody.innerHTML = markdown(reply);
+    if (used.length) {
+      const src = document.createElement('p');
+      src.className = 'used';
+      src.textContent = 'Read: ' + used.join(' · ');
+      pending.appendChild(src);
+    }
+    if (kbActions.length) {
+      note('🗂 Knowledge base updated — ' + kbActions.join(' · '));
+      kbRender();
+    }
+    lastReply = reply;
+    lastSpeakable = speakable(reply);
+    lastTurn = pending;
+    store.addThread(text, zone);
+    store.addChatTurn('user', text);
+    store.addChatTurn('assistant', reply);
+    $('status').textContent = getStatus();
+    if ($('autoread').checked) readAlong(pending, lastSpeakable);
+  } finally {
+    clearInterval(ticker);
+    pending.classList.remove('streaming');
+    $('send').disabled = false;
+    log.scrollTop = log.scrollHeight;
+  }
+}
+
+/* ---------- dictation --------------------------------------------------
+ * The browser's speech engine sits where Whisper sat. The spoken-
+ * punctuation kernel is the same one, ported: say "period", "new line",
+ * "cap", "all caps on" — and duplicates against the engine's own
+ * punctuation collapse to the strongest mark. */
+
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+let rec = null;
+let recFinal = '';
+
+function micIdle() {
+  const b = $('mic');
+  recording = false;
+  b.setAttribute('aria-pressed', 'false');
+  b.innerHTML = '<span aria-hidden="true">🎤</span> Speak';
+}
+
+function toggleMic() {
+  const b = $('mic');
+  if (!SR) {
+    note('This browser has no speech recognition engine — dictation runs in ' +
+         'Chrome and Edge, or in the desktop console.', true);
+    return;
+  }
+  if (!recording) {
+    recFinal = '';
+    try {
+      rec = new SR();
+      rec.continuous = true;
+      rec.interimResults = true;
+      rec.onresult = (e) => {
+        for (let i = e.resultIndex; i < e.results.length; i += 1) {
+          if (e.results[i].isFinal) recFinal += e.results[i][0].transcript + ' ';
+        }
+      };
+      rec.onerror = (e) => {
+        micIdle();
+        if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
+          note('The browser refused microphone access in this frame — dictation ' +
+               'needs it. The desktop console is unaffected.', true);
+        } else if (e.error === 'no-speech') {
+          note('No speech was heard.');
+        } else {
+          note('Dictation error: ' + e.error, true);
+        }
+        $('status').textContent = getStatus();
+      };
+      rec.onend = () => {
+        if (recording) { micIdle(); }
+        const polished = polish(recFinal.trim());
+        if (polished) {
+          const box = $('msg');
+          box.value = (box.value ? box.value + ' ' : '') + polished;
+          box.focus();
+          grow(box);
+        }
+        $('status').textContent = getStatus();
+      };
+      rec.start();
+      recording = true;
+      b.setAttribute('aria-pressed', 'true');
+      b.innerHTML = '<span aria-hidden="true">■</span> Stop';
+      $('status').textContent = 'Listening — speak, then press Stop.';
+    } catch (err) {
+      micIdle();
+      note('Dictation could not start here: ' + err, true);
+    }
+  } else {
+    micIdle();
+    $('status').textContent = 'Transcribing…';
+    try { rec && rec.stop(); } catch (err) { /* onend still fires */ }
+  }
+}
+
+function grow(box) {
+  box.style.height = 'auto';
+  box.style.height = Math.min(box.scrollHeight, window.innerHeight * 0.3) + 'px';
+}
+
+/* ---------- context sources: upload ------------------------------------ */
+
+function showAttachment(label) {
+  const out = $('attached');
+  const off = $('detach');
+  if (label) {
+    out.textContent = label;
+    out.title = label;
+    off.hidden = false;
+  } else {
+    out.textContent = '';
+    out.title = '';
+    off.hidden = true;
+  }
+}
+
+const TEXT_EXTS = ['.txt', '.md', '.markdown', '.csv', '.html', '.htm', '.json', '.log'];
+
+function handleFile(file) {
+  if (!file) return;
+  const name = file.name;
+  const ext = (name.lastIndexOf('.') >= 0 ? name.slice(name.lastIndexOf('.')) : '').toLowerCase();
+  if (!TEXT_EXTS.includes(ext)) {
+    note(`📎 Couldn't read ${name} — the browser build reads text formats ` +
+         `(${TEXT_EXTS.join(' ')}). .docx/.pdf/.xlsx extraction is a ` +
+         'desktop-console feature.', true);
+    return;
+  }
+  const reader = new FileReader();
+  reader.onerror = () => note(`📎 Couldn't read ${name} — the file did not open.`, true);
+  reader.onload = () => {
+    let body = String(reader.result || '');
+    if (ext === '.html' || ext === '.htm') {
+      try {
+        const doc = new DOMParser().parseFromString(body, 'text/html');
+        body = (doc.body && doc.body.textContent) || '';
+      } catch (e) { /* keep the raw text */ }
+    }
+    if (!body.trim()) {
+      note(`📎 Couldn't read ${name} — unsupported format or empty file.`, true);
+      return;
+    }
+    let clipped = false;
+    if (body.length > MAX_ATTACHMENT_CHARS) { body = body.slice(0, MAX_ATTACHMENT_CHARS); clipped = true; }
+    attachment = { name: name, text: body };
+    showAttachment(attachmentLabel(name, body.length));
+    note(`📎 Attached ${name}. Ask me about it — I'll read the relevant parts. ` +
+         'It stays attached until you remove it.' +
+         (clipped ? ' (Very large file — the first two million characters are held.)' : ''));
+  };
+  reader.readAsText(file);
+}
+
+/* ---------- telemetry --------------------------------------------------
+ * The desktop header shows free system RAM because the machine's
+ * condition is the biggest factor in how that app feels. A page cannot
+ * read system RAM; what it CAN measure honestly is its own JS heap, so
+ * that is what is shown, labelled as exactly that. */
+
+function showHeap() {
+  const el = $('ram');
+  try {
+    const m = performance.memory;
+    el.textContent = (m && m.usedJSHeapSize)
+      ? 'heap ' + Math.round(m.usedJSHeapSize / 1048576).toLocaleString() + ' MB'
+      : '';
+  } catch (e) { el.textContent = ''; }
+}
+
+/* ---------- boot -------------------------------------------------------- */
+
+function bootMessage(podFn) {
+  if (podFn) {
+    return 'Web build online — **pod assistant** in the local model\'s seat.\n\n' +
+      'Same pipeline as the desktop console: five stages, same modes, same ' +
+      'commands, same clear floor. Press **Speak** to dictate, or just type.\n\n' +
+      'While an answer is read aloud, the sentence being spoken is highlighted ' +
+      'so you can follow along — click any sentence to hear it again from there. ' +
+      'Tick **Auto** to have every answer read as it arrives.\n\n' +
+      'Tick **🌐 Web search** or **☁ Google Drive** — or press **📎 Upload ' +
+      'document** — and I will read those before answering, citing what I ' +
+      'read. Google Sheets come through ☁. Saying "search the web for …" ' +
+      'works without touching the box.\n\n' +
+      'The **🗂 Knowledge Base** is new — the Study Workstation, resident ' +
+      'in the console: a Library, note cards, Notes, a Journal and a ' +
+      'Glossary, kept in this browser. With **🗂 Knowledge** ticked I read ' +
+      'them before answering — and I can write to them too: ask me to ' +
+      'capture a card, save a note, journal the session, or define a term. ' +
+      '`/kb` shows what\'s stored.\n\n' +
+      'I keep the recent conversation in recall — even across a reload — so you ' +
+      'can ask me about something we said and I can call it back. **Clear** ' +
+      'archives it out of recall; nothing is deleted.\n\n' +
+      'One honest difference: the desktop console is local-first, and this page ' +
+      'is not — the pod assistant is a cloud call, made only with your ' +
+      'permission, and your browser will ask the first time. `/port` lists ' +
+      'exactly what carried over.';
+  }
+  return 'Web build online — **template mode**.\n\n' +
+    'The pod assistant is not answering in this view, so responses use the ' +
+    'deterministic engine — the same structured fallback the desktop console ' +
+    'uses when its local model is away. The pipeline, commands, modes, ' +
+    'read-along, dictation and upload retrieval all still run.\n\n' +
+    '`/port` lists what carried over from the desktop build.';
+}
+
+function start(hotData) {
+  /* Preferences, exactly as the desktop bridge restored them. */
+  const font = store.getState('web_font', 'system');
+  document.documentElement.dataset.font = font;
+  $('font').value = font;
+  applySize(size);
+  $('autoread').checked = store.getState('autoread', '0') === '1';
+  $('src-drive').checked = store.getState('src_drive', '0') === '1';
+  $('src-web').checked = store.getState('src_web', '0') === '1';
+  /* The knowledge base defaults ON: it is local, free, and silent when
+     nothing in it matches — the safest kind of grounding. */
+  $('src-kb').checked = store.getState('src_kb', '1') === '1';
+  kbBadge();
+  setZone(zone);
+  $('status').textContent = getStatus();
+  showHeap();
+
+  if (hotData && hotData.html) {
+    /* A republish reached an open view: keep the conversation on screen. */
+    log.innerHTML = hotData.html;
+    if (hotData.zone && hotData.zone in TONES) { zone = hotData.zone; setZone(zone); }
+    $('status').textContent = getStatus();
+    return;
+  }
+
+  const boot = turn('Strata', markdown('Web build online — checking for the **pod assistant**…'));
+  podReady.then((fn) => {
+    boot.querySelector('.body').innerHTML = markdown(bootMessage(fn));
+    lastTurn = boot;
+    lastSpeakable = speakable(bootMessage(fn));
+    $('status').textContent = getStatus();
+    log.scrollTop = log.scrollHeight;
+  });
+}
+
+/* ---------- wiring ------------------------------------------------------ */
+
+$('composer').addEventListener('submit', (e) => { e.preventDefault(); send(); });
+
+const box = $('msg');
+box.addEventListener('input', () => grow(box));
+box.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
+});
+
+$('bigger').addEventListener('click', () => applySize(size + 2));
+$('smaller').addEventListener('click', () => applySize(size - 2));
+
+$('font').addEventListener('change', (e) => {
+  document.documentElement.dataset.font = e.target.value;
+  store.setState('web_font', e.target.value);
+});
+
+$('mic').addEventListener('click', toggleMic);
+
+/* The desktop-only sources answer honestly when reached for. */
+$('lbl-web').addEventListener('click', (e) => {
+  e.preventDefault();
+  note('🌐 Web search is a desktop-console feature. This page opens no ' +
+       'connection except the pod assistant itself — by design, its network ' +
+       'is otherwise closed.');
+});
+$('src-web').addEventListener('change', async (e) => {
+  store.setState('src_web', e.target.checked ? '1' : '0');
+  if (!e.target.checked) {
+    note('🌐 Web search off. Saying "look this up" still works for one message.');
+    return;
+  }
+  await mcpReady;
+  if (!mcp) {
+    e.target.checked = false;
+    store.setState('src_web', '0');
+    note('🌐 The web-search bridge is not available in this view.', true);
+    return;
+  }
+  note('🌐 Web search ON — I will search before answering, and cite what I ' +
+       'read. Your browser may ask permission on the first search.');
+});
+
+$('src-drive').addEventListener('change', async (e) => {
+  store.setState('src_drive', e.target.checked ? '1' : '0');
+  if (!e.target.checked) { note('☁ Google Drive off.'); return; }
+  await mcpReady;
+  if (!mcp) {
+    e.target.checked = false;
+    store.setState('src_drive', '0');
+    note('☁ The Google Drive bridge is not available in this view.', true);
+    return;
+  }
+  note('☁ Google Drive ON — I will search your Drive for each message and ' +
+       'read the most relevant files (Google Sheets included), citing what I ' +
+       'read. Your browser may ask permission on the first search.');
+});
+
+$('upload').addEventListener('click', () => $('file').click());
+$('file').addEventListener('change', (e) => {
+  handleFile(e.target.files && e.target.files[0]);
+  e.target.value = '';
+});
+$('detach').addEventListener('click', () => {
+  if (!attachment) return;
+  attachment = null;
+  showAttachment(null);
+  note('📎 Attachment removed.');
+});
+
+/* Knowledge base wiring — the drawer, the source box, the library file. */
+$('kb-open').addEventListener('click', () => kbToggle());
+$('src-kb').addEventListener('change', (e) => {
+  store.setState('src_kb', e.target.checked ? '1' : '0');
+  note(e.target.checked
+    ? '🗂 Knowledge base ON — I will search your library, cards, notes, ' +
+      'journal and glossary before answering, and cite what I read. The ' +
+      'search runs in this page; nothing leaves this browser to do it.'
+    : '🗂 Knowledge base off — I will not read it until you turn it back on.');
+});
+$('kb-file').addEventListener('change', (e) => {
+  kbHandleFile(e.target.files && e.target.files[0]);
+  e.target.value = '';
+});
+
+$('read').addEventListener('click', () => {
+  if (speaking) { stopReading(); return; }
+  if (!lastTurn) { note('Nothing to read yet — send a message first.'); return; }
+  readAlong(lastTurn, lastSpeakable);
+});
+
+$('autoread').addEventListener('change', (e) => {
+  store.setState('autoread', e.target.checked ? '1' : '0');
+  note(e.target.checked
+    ? 'Auto-read ON — answers will be spoken as they arrive, with the sentence highlighted.'
+    : 'Auto-read off — use the Read button.');
+});
+
+$('clear').addEventListener('click', () => {
+  stopReading();
+  const cleared = store.raiseFloor();
+  log.innerHTML = '';
+  lastReply = '';
+  lastSpeakable = '';
+  lastTurn = null;
+  note(clearReport(cleared, store.archivedCount()));
+  $('status').textContent = getStatus();
+  $('msg').focus();
+});
+
+$('help').addEventListener('click', () => {
+  lastTurn = turn('Strata', markdown([
+    '### Keyboard',
+    '- **Tab** moves through every control — all of them, natively.',
+    '- **Enter** sends. **Shift+Enter** starts a new line.',
+    '- **Ctrl+L** clears the window and what the assistant recalls.',
+    '- **Escape** stops reading aloud — and stops the pod assistant mid-answer.',
+    '',
+    '### Reading along',
+    'While an answer is spoken, the current sentence is highlighted and',
+    'the current word is underlined. Click any sentence to hear it again',
+    'from that point. Tick **Auto** to have every answer read as it arrives.',
+    '',
+    '### Speaking punctuation while you dictate',
+    'Say `period`, `comma`, `question mark`, `new line`, `new paragraph`,',
+    '`open paren` / `close paren`, `cap <word>`, `all caps on` … `all caps off`.',
+    'If the recogniser already heard the pause and punctuated it, the',
+    'duplicate is cleaned up for you.',
+  ].join('\n') + '\n\n' + helpText()));
+});
+
+document.querySelectorAll('.mode').forEach((b) => {
+  b.addEventListener('click', () => {
+    const msg = changeZone(b.dataset.zone);
+    setZone(zone);
+    note(msg);
+    $('status').textContent = getStatus();
+  });
+});
+
+document.addEventListener('keydown', (e) => {
+  if (e.ctrlKey && e.key.toLowerCase() === 'l') {
+    e.preventDefault();
+    $('clear').click();
+  }
+  if (e.key === 'Escape') {
+    if (busyCtl) { e.preventDefault(); busyCtl.abort(); }
+    else if (speaking) { e.preventDefault(); stopReading(); }
+  }
+});
+
+setInterval(showHeap, 5000);
+
+/* Hot-reload continuity: a republish reaching an open view keeps the
+   conversation. Guarded — the desktop shell has no such hook, and a
+   plain browser doesn't either. */
+try {
+  if (window.claude && window.claude.hot && window.claude.hot.snapshot) {
+    window.claude.hot.snapshot(() => ({ html: log.innerHTML, zone: zone }));
+  }
+} catch (e) { /* continuity is a bonus, never load-bearing */ }
+
+const hot = (window.claude && window.claude.hot) || null;
+if (hot && hot.ready) hot.ready(start);
+else start((hot && hot.data) || {});
+</script>
+
+</body></html>

@@ -280,6 +280,28 @@ around it — retrieval, mode control, RAM discipline, accessibility, and
 graceful fallbacks. Environment overrides: `STRATA_NUM_CTX`,
 `STRATA_KEEP_ALIVE`, `STRATA_INDEX_DIR`.
 
+## Browser build
+
+Strata Console has a companion browser build — a single-page snapshot
+published as a claude.ai Artifact. It has no server and no build step:
+open it in a browser and it runs. The desktop app documented above is
+the primary product; the browser build is where lighter ideas are tried
+before they earn the desktop's RAM budget and interpreter rule.
+
+The on-repo copy is [`strata_console_browser.html`](strata_console_browser.html)
+at the repository root — a byte-for-byte snapshot filed as the permanent
+reference alongside the Artifact link and the Google Docs / OneDrive
+record. Integrity is pinned in the shipping notes (SHA256 recorded in
+CHANGELOG); a diff against that hash tells you whether this file matches
+the published Artifact.
+
+The first browser-side feature scoped through the documentation gate is
+the **Prompt Library** — automatic per-exchange capture, keyword
+classification into ten fixed Dewey-style classes, and retrieval as
+long-term memory. Design, data model and pseudocode are in
+[docs/PROMPT_LIBRARY_BLUEPRINT.md](docs/PROMPT_LIBRARY_BLUEPRINT.md);
+status: **BLUEPRINT** — no browser code has been merged for it yet.
+
 ## License
 
 MIT — see [LICENSE](LICENSE).
