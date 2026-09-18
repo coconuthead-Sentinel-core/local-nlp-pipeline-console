@@ -35,14 +35,30 @@ engine, tools and tests are untouched.
     earliest class in A→I order. J is used only when every score is
     zero.
   - **Shared-quota safety.** Cap is 400 records **or** 2.5 MB serialized,
-    whichever first, **and** every write is guarded — a
-    `QuotaExceededError` from another store crowding localStorage
-    triggers export-then-prune, not a silent drop.
+    whichever first (measured with `TextEncoder`, not UTF-16 code
+    units, so non-ASCII payloads count accurately). Every write is
+    guarded — a `QuotaExceededError` from another store crowding
+    localStorage triggers a snapshot-and-prune with a **visible warning
+    in the transcript** so nothing is silently lost, and points the
+    user at `/promptlib export` to save an archive before more records
+    are pruned. A two-strike quota failure rolls RAM back to the
+    pre-capture state so the in-memory view matches disk (no mixed
+    state that could overwrite older records on the next successful
+    write).
   - **Reproducible classification.** The keyword lexicons for A–I are
     listed in the module; tokenizing is lower-case word-boundary
     matching; each keyword hit is one point (multiplicity counts); J
     is the zero-score fallback. This is v1; classes and coords stay
     editable — the machine files, the librarian corrects.
+  - **Retrieval de-noised.** Query and record text are compared on
+    content tokens only — a small stopword list strips filler words
+    like "a", "do", "the", "for" so a message mentioning them doesn't
+    drag every stored record into context.
+  - **`/promptlib export`** dumps the whole archive as JSON in the
+    transcript, so pruned records can be saved elsewhere before the
+    browser store runs out of room. `/promptlib` itself always shows
+    each drawer's next coord (including empty drawers, which start at
+    row 1).
 
   The full Library-drawer UI (browse, re-file, delete, export) is a
   follow-up increment per the blueprint's "small increments" gate.
@@ -69,10 +85,13 @@ engine, tools and tests are untouched.
   through the documentation gate.
 
 ### Integrity
-- After Prompt Library v1 (this section): 120,357 bytes, SHA256
-  `0bce3992cb8d584b7b8fb2a31c84572820aab95ea94e010c1e17b55a6b55abb9`.
+- After Prompt Library v1 with review-round fixes: 124,219 bytes, SHA256
+  `22739c3391add560ffca89b5c3e7db0ae0ce668157fe63baca288a3d0fc02e5c`.
   A `sha256sum strata_console_browser.html` matching this value confirms
-  the file has not drifted since Prompt Library v1 was filed.
+  the file has not drifted since v1 was filed. (Earlier v1 draft was
+  120,357 bytes / `0bce3992…`; superseded by review fixes for UTF-16
+  byte accounting, retrieval de-noising, empty-drawer display, quota
+  rollback consistency, and the `/promptlib export` command.)
 
 ## [2.2.0] — 2026-09-02
 

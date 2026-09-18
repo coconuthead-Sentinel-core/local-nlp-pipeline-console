@@ -300,7 +300,10 @@ the **Prompt Library** — automatic per-exchange capture, keyword
 classification into ten fixed Dewey-style classes, and retrieval as
 long-term memory. Design, data model and pseudocode are in
 [docs/PROMPT_LIBRARY_BLUEPRINT.md](docs/PROMPT_LIBRARY_BLUEPRINT.md);
-status: **BLUEPRINT** — no browser code has been merged for it yet.
+**v1 (store, classifier, capture, retrieve, `/promptlib` command)** is
+in flight in `[Unreleased]` (see [CHANGELOG](CHANGELOG.md)). The full
+Library-drawer UI (browse, re-file, delete, export via a real button)
+is a follow-up increment.
 
 ## License
 

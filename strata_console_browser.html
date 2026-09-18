@@ -1169,6 +1169,27 @@ const promptlib = (() => {
     return String(text || '').toLowerCase().match(/[a-z0-9+#]+/g) || [];
   }
 
+  /* Retrieval tokens strip common short stopwords so a query with "a"
+     or "do" does not hit nearly every stored record. Classification
+     tokenize() stays permissive because class keywords include short
+     ones like "js", "py", "go", "c++". Two callers, one policy each. */
+  const PROMPTLIB_STOPWORDS = new Set([
+    'a', 'an', 'the', 'is', 'are', 'was', 'were', 'be', 'been', 'being',
+    'do', 'does', 'did', 'doing', 'have', 'has', 'had', 'having',
+    'of', 'to', 'in', 'on', 'at', 'by', 'for', 'with', 'as', 'from',
+    'it', 'its', 'this', 'that', 'these', 'those', 'here', 'there',
+    'or', 'and', 'but', 'if', 'so', 'not', 'no', 'yes', 'nor',
+    'i', 'me', 'my', 'mine', 'you', 'your', 'yours',
+    'we', 'us', 'our', 'ours', 'they', 'them', 'their', 'theirs',
+    'he', 'him', 'his', 'she', 'her', 'hers',
+    'can', 'could', 'would', 'should', 'may', 'might', 'must',
+    'will', 'shall', 'am',
+  ]);
+  function retrievalTokens(text) {
+    const toks = tokenize(text);
+    return toks.filter((t) => t.length >= 2 && !PROMPTLIB_STOPWORDS.has(t));
+  }
+
   function scoreClass(joined, kw) {
     /* One point per keyword occurrence in the joined tokenized text.
        Multi-word keywords are matched as substrings against the same
@@ -1197,7 +1218,12 @@ const promptlib = (() => {
   }
 
   function bytes() {
-    try { return JSON.stringify(data).length; } catch (e) { return 0; }
+    /* Real serialized byte count. `JSON.stringify(data).length` counts
+       UTF-16 code units, so a payload with non-ASCII text can exceed
+       the cap while still measuring "under budget". TextEncoder emits
+       the same bytes localStorage stores. */
+    try { return new TextEncoder().encode(JSON.stringify(data)).length; }
+    catch (e) { return 0; }
   }
 
   function persist() {
@@ -1241,9 +1267,13 @@ const promptlib = (() => {
   function capture({ prompt, reply, zone, sources }) {
     const pText = String(prompt || '').slice(0, PROMPTLIB_MAX_PROMPT);
     const rText = String(reply  || '').slice(0, PROMPTLIB_MAX_REPLY);
-    if (!pText && !rText) return null;
+    if (!pText && !rText) return { record: null, pruned: 0, failed: false };
+    /* Snapshot before ANY mutation so a two-strike quota failure can
+       be rolled back without leaving RAM out of sync with disk. */
+    const beforeRecords = data.records.slice();
+    const beforeNextRow = Object.assign({}, data.nextRow);
     const cls = classify(pText + ' ' + rText);
-    const coord = coordFor(cls);
+    const coord = coordFor(cls);       // increments data.nextRow[cls.col]
     const rec = {
       id: uid(),
       at: new Date().toISOString(),
@@ -1257,33 +1287,40 @@ const promptlib = (() => {
       tags: [],
     };
     data.records.unshift(rec);
+    let pruned = 0;
     if (!persist()) {
-      /* Quota rejection: drop oldest 10% and try again once. The coord
-         we reserved is NOT decremented — a gap is honest; a re-used
-         number is a bug. */
+      /* Quota rejection. Prune the oldest 10% and retry. The coord we
+         reserved is NOT decremented — a gap is honest; a re-used number
+         is a bug. */
       const drop = Math.max(1, Math.floor(data.records.length * 0.10));
-      data.records.splice(-drop, drop);
+      const gone = data.records.splice(-drop, drop);
+      pruned = gone.length;
       if (!persist()) {
-        /* Still no room. Undo the unshift so the RAM view matches disk. */
-        data.records.shift();
-        return null;
+        /* Still no room. Roll RAM back to the pre-capture state so it
+           matches whatever's on disk (or is empty if disk is also
+           unwritable). The coord counter is rolled back too — no write
+           ever landed, so no gap either. */
+        data.records = beforeRecords;
+        data.nextRow = beforeNextRow;
+        return { record: null, pruned: 0, failed: true };
       }
     }
-    enforceCap();
-    return rec;
+    pruned += enforceCap();
+    return { record: rec, pruned: pruned, failed: false };
   }
 
   function retrieve(query, opts) {
-    /* Rank library records by shared tokens with the query. Pure — no
-       writes, no fetches. Returns up to `limit` records within a total
-       snippet-character budget. */
+    /* Rank library records by shared *content* tokens with the query.
+       Stopwords and one-character tokens are stripped from both sides
+       so a message containing "a" or "do" doesn't drag every record
+       into context. Pure — no writes, no fetches. */
     const limit  = (opts && opts.limit)  || 3;
     const budget = (opts && opts.budget) || 1200;
-    const qTokens = new Set(tokenize(query));
+    const qTokens = new Set(retrievalTokens(query));
     if (!qTokens.size) return [];
     const scored = [];
     for (const r of data.records) {
-      const rTokens = tokenize(r.prompt + ' ' + r.reply);
+      const rTokens = retrievalTokens(r.prompt + ' ' + r.reply);
       let hits = 0;
       for (const t of rTokens) if (qTokens.has(t)) hits += 1;
       if (hits > 0) scored.push({ r, hits });
@@ -1342,15 +1379,36 @@ function promptlibText() {
   lines.push('');
   for (const c of classes) {
     const n = s.counts[c.col] || 0;
-    const next = s.nextRow[c.col] || 0;
-    const tail = next ? ` — next coord ${c.col}${next + 1}` : '';
-    lines.push(`- **${c.col} — ${c.name}**: ${n} record${n === 1 ? '' : 's'}${tail}`);
+    /* Always render the next coordinate — even an empty drawer has one
+       (row 1 for the first record filed there). */
+    const next = (s.nextRow[c.col] || 0) + 1;
+    lines.push(`- **${c.col} — ${c.name}**: ${n} record${n === 1 ? '' : 's'} — next coord ${c.col}${next}`);
   }
   lines.push('');
   lines.push('Every completed pod exchange is captured automatically. ' +
              'Coordinates are assigned in arrival order per drawer and never re-used, ' +
              'so pruned or deleted records leave gaps rather than collide.');
+  lines.push('');
+  lines.push('Use `/promptlib export` to dump the whole archive as JSON — copy it ' +
+             'somewhere durable (Google Drive, OneDrive, a local file) so pruned ' +
+             'records can be recovered if the browser store runs out of room.');
   return lines.join('\n');
+}
+
+function promptlibExportText() {
+  const json = promptlib.exportJSON();
+  const kb = (new TextEncoder().encode(json).length / 1024).toFixed(1);
+  return [
+    '### Prompt Library — export',
+    '',
+    `**Size:** ${kb} KB. Copy the block below and save it as JSON somewhere ` +
+      'durable. If the library later runs out of storage in this browser, ' +
+      'oldest records are pruned to make room, so keep the export current.',
+    '',
+    '```json',
+    json,
+    '```',
+  ].join('\n');
 }
 
 /* Search every KB store with the console's own retrieval kernel:
@@ -1830,8 +1888,13 @@ function runCommand(text) {
     }
     case 'port':
       return { handled: true, markdown: true, message: PORT_NOTES };
-    case 'promptlib':
+    case 'promptlib': {
+      const arg = (c.argument || '').toLowerCase();
+      if (arg === 'export') {
+        return { handled: true, markdown: true, message: promptlibExportText() };
+      }
       return { handled: true, markdown: true, message: promptlibText() };
+    }
     case 'help':
       return { handled: true, markdown: true, message: helpText() };
   }
@@ -2560,9 +2623,19 @@ async function send() {
     /* File the completed exchange into the Prompt Library — classified
        into one of ten fixed drawers (A–J), given a per-drawer arrival
        coord, and searched on the next message. Never overwrites the
-       existing stores; runs on a completed exchange only. */
+       existing stores; runs on a completed exchange only. A storage
+       failure is surfaced (rather than silently dropped) so the user
+       can export before more records are lost. */
     try {
-      promptlib.capture({ prompt: text, reply: reply, zone: zone, sources: used.slice() });
+      const r = promptlib.capture({ prompt: text, reply: reply, zone: zone, sources: used.slice() });
+      if (r && r.failed) {
+        note('⚠ Prompt Library is out of storage — this exchange was NOT captured. ' +
+             'Type /promptlib export to save the archive, then clear space.', true);
+      } else if (r && r.pruned) {
+        note(`⚠ Prompt Library at cap — the oldest ${r.pruned} record${r.pruned === 1 ? '' : 's'} ` +
+             'w' + (r.pruned === 1 ? 'as' : 'ere') + ' pruned to make room. ' +
+             'Use /promptlib export to save an archive before pruning happens again.', true);
+      }
     } catch (e) { /* capture never breaks the send path */ }
     $('status').textContent = getStatus();
     if ($('autoread').checked) readAlong(pending, lastSpeakable);
