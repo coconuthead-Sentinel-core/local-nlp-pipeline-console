@@ -681,13 +681,14 @@ function synthesizeTemplate(d, routePath, context, tone, currentZone) {
 /* ---------- slash commands (strata_tools/commands.py, ported) --------- */
 
 const COMMANDS = {
-  status:  'Show the current mode, assistant and memory depth.',
-  lexicon: 'List the operator tokens and what each one does.',
-  mode:    'Switch mode: /mode green | yellow | red.',
-  kb:      'Knowledge base: /kb — counts and recent activity; /kb open | close.',
-  clear:   'Clear the window and what the assistant recalls.',
-  port:    'What carried over from the desktop console, and what could not.',
-  help:    'Show this list.',
+  status:    'Show the current mode, assistant and memory depth.',
+  lexicon:   'List the operator tokens and what each one does.',
+  mode:      'Switch mode: /mode green | yellow | red.',
+  kb:        'Knowledge base: /kb — counts and recent activity; /kb open | close.',
+  promptlib: 'Prompt Library: counts per drawer, coordinates, and storage used.',
+  clear:     'Clear the window and what the assistant recalls.',
+  port:      'What carried over from the desktop console, and what could not.',
+  help:      'Show this list.',
 };
 const ALIASES = { zone: 'mode', new: 'clear' };
 
@@ -1109,6 +1110,306 @@ const kb = (() => {
     },
   };
 })();
+
+/* ---------- prompt library (v1, browser-side long-term memory) --------
+ * Every completed pod exchange is captured here — deterministically
+ * classified into one of ten fixed Dewey-style drawers (A–J), given a
+ * coordinate (D3 = "drawer D, row 3"), and searched on the next message
+ * so the assistant can flag anything already tried. Lives under
+ * strata_promptlib_v1, fully separate from the conversation stores and
+ * the Knowledge Base. Blueprint: docs/PROMPT_LIBRARY_BLUEPRINT.md.
+ *
+ * v1 closes the design gaps flagged in the blueprint's own review:
+ * - Coordinates never collide after delete/prune. A monotonic per-class
+ *   sequence lives in nextRow and is only ever incremented — deleting a
+ *   record leaves a gap instead of freeing the number.
+ * - Classification ties break to the earliest class in A→I order. J is
+ *   used only when every score is zero.
+ * - Shared-quota safety: the cap is 400 records OR 2.5 MB serialized,
+ *   whichever first; every write is guarded and a QuotaExceededError
+ *   from another store crowding localStorage triggers the export-then-
+ *   prune flow, so the Prompt Library never fails silently.
+ * - CLASSIFY is reproducible: the lexicons are listed below, tokenizing
+ *   is lower-case word-boundary matching, and each keyword hit is one
+ *   point (multiplicity counts). This is v1; classes and coords stay
+ *   editable — the machine files, the librarian corrects. */
+
+const PROMPTLIB_CLASSES = [
+  { col: 'A', name: 'System & Meta',         kw: ['strata', 'console', 'setup', 'install', 'command', 'kb', 'ollama', 'localstorage', 'browser', 'artifact', 'drawer', 'shell', 'startup', 'launch', 'configure'] },
+  { col: 'B', name: 'Planning & Goals',      kw: ['plan', 'goal', 'milestone', 'schedule', 'roadmap', 'strategy', 'decision', 'priority', 'deadline', 'next steps', 'quarter', 'week', 'agenda', 'todo'] },
+  { col: 'C', name: 'Study & Learning',      kw: ['study', 'learn', 'course', 'exam', 'flashcard', 'reading', 'chapter', 'lesson', 'quiz', 'homework', 'lecture', 'notes', 'review', 'test'] },
+  { col: 'D', name: 'Code — HTML/CSS',       kw: ['html', 'css', 'div', 'flex', 'grid', 'span', 'selector', 'stylesheet', 'aria', 'contrast', 'markup', 'layout', 'box model', 'font', 'tailwind', 'button'] },
+  { col: 'E', name: 'Code — JavaScript',     kw: ['javascript', 'js', 'dom', 'event', 'promise', 'async', 'await', 'fetch', 'window', 'document', 'const', 'let', 'function', 'array', 'json', 'callback', 'listener', 'closure'] },
+  { col: 'F', name: 'Code — Python & other', kw: ['python', 'py', 'def', 'import', 'pip', 'venv', 'pytest', 'sqlite', 'flask', 'django', 'rust', 'go', 'java', 'bash', 'ruby', 'c++', 'kotlin', 'swift'] },
+  { col: 'G', name: 'AI & Prompting',        kw: ['prompt', 'llm', 'model', 'claude', 'gpt', 'anthropic', 'openai', 'agent', 'rag', 'context', 'temperature', 'token', 'inference', 'embedding', 'assistant', 'reasoning'] },
+  { col: 'H', name: 'Writing & Documents',   kw: ['write', 'draft', 'edit', 'readme', 'resume', 'letter', 'document', 'paragraph', 'sentence', 'grammar', 'summarize', 'style', 'headline', 'byline', 'essay'] },
+  { col: 'I', name: 'Finance',               kw: ['budget', 'bill', 'income', 'expense', 'savings', 'account', 'bank', 'salary', 'invoice', 'tax', 'cost', 'price', 'debt', 'credit', 'rent', 'grocery'] },
+];
+const PROMPTLIB_GENERAL = { col: 'J', name: 'General' };
+const PROMPTLIB_CAP_RECORDS = 400;
+const PROMPTLIB_CAP_BYTES   = 2.5 * 1024 * 1024;   // 2.5 MB serialized
+const PROMPTLIB_MAX_PROMPT  = 2000;
+const PROMPTLIB_MAX_REPLY   = 4000;
+
+const promptlib = (() => {
+  const KEY = 'strata_promptlib_v1';
+  const blank = () => ({ records: [], nextRow: {} });
+  let data = blank();
+  try {
+    const raw = localStorage.getItem(KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      data = Object.assign(blank(), parsed);
+      if (!data.nextRow || typeof data.nextRow !== 'object') data.nextRow = {};
+      if (!Array.isArray(data.records)) data.records = [];
+    }
+  } catch (e) { data = blank(); }
+
+  function tokenize(text) {
+    return String(text || '').toLowerCase().match(/[a-z0-9+#]+/g) || [];
+  }
+
+  /* Retrieval tokens strip common short stopwords so a query with "a"
+     or "do" does not hit nearly every stored record. Classification
+     tokenize() stays permissive because class keywords include short
+     ones like "js", "py", "go", "c++". Two callers, one policy each. */
+  const PROMPTLIB_STOPWORDS = new Set([
+    'a', 'an', 'the', 'is', 'are', 'was', 'were', 'be', 'been', 'being',
+    'do', 'does', 'did', 'doing', 'have', 'has', 'had', 'having',
+    'of', 'to', 'in', 'on', 'at', 'by', 'for', 'with', 'as', 'from',
+    'it', 'its', 'this', 'that', 'these', 'those', 'here', 'there',
+    'or', 'and', 'but', 'if', 'so', 'not', 'no', 'yes', 'nor',
+    'i', 'me', 'my', 'mine', 'you', 'your', 'yours',
+    'we', 'us', 'our', 'ours', 'they', 'them', 'their', 'theirs',
+    'he', 'him', 'his', 'she', 'her', 'hers',
+    'can', 'could', 'would', 'should', 'may', 'might', 'must',
+    'will', 'shall', 'am',
+  ]);
+  function retrievalTokens(text) {
+    const toks = tokenize(text);
+    return toks.filter((t) => t.length >= 2 && !PROMPTLIB_STOPWORDS.has(t));
+  }
+
+  function scoreClass(joined, kw) {
+    /* One point per keyword occurrence in the joined tokenized text.
+       Multi-word keywords are matched as substrings against the same
+       lower-cased, space-separated token stream, so "next steps" counts
+       exactly the way a single-word keyword does. */
+    let n = 0;
+    for (const raw of kw) {
+      const needle = ' ' + String(raw).toLowerCase() + ' ';
+      let idx = 0;
+      while ((idx = joined.indexOf(needle, idx)) !== -1) { n += 1; idx += 1; }
+    }
+    return n;
+  }
+
+  function classify(text) {
+    const tokens = tokenize(text);
+    if (!tokens.length) return PROMPTLIB_GENERAL;
+    const joined = ' ' + tokens.join(' ') + ' ';
+    let best = null; let bestScore = 0;
+    for (const cls of PROMPTLIB_CLASSES) {
+      const s = scoreClass(joined, cls.kw);
+      /* Strict '>' — the FIRST class in A→I order wins on tie. */
+      if (s > bestScore) { bestScore = s; best = cls; }
+    }
+    return bestScore === 0 ? PROMPTLIB_GENERAL : best;
+  }
+
+  function bytes() {
+    /* Real serialized byte count. `JSON.stringify(data).length` counts
+       UTF-16 code units, so a payload with non-ASCII text can exceed
+       the cap while still measuring "under budget". TextEncoder emits
+       the same bytes localStorage stores. */
+    try { return new TextEncoder().encode(JSON.stringify(data)).length; }
+    catch (e) { return 0; }
+  }
+
+  function persist() {
+    /* Guarded write. Returns false on quota rejection so the caller can
+       trigger export-then-prune rather than silently losing the record. */
+    try { localStorage.setItem(KEY, JSON.stringify(data)); return true; }
+    catch (e) { return false; }
+  }
+
+  function uid() {
+    return 'p-' + Math.random().toString(36).slice(2, 8) + '-' + Date.now().toString(36);
+  }
+
+  function coordFor(cls) {
+    const key = cls.col;
+    const next = (data.nextRow[key] || 0) + 1;
+    data.nextRow[key] = next;
+    return key + next;
+  }
+
+  function enforceCap() {
+    /* Runs after every successful write. Drops the oldest 10% when the
+       cap is exceeded on either axis — records OR serialized size. The
+       nextRow counters stay put, so pruned coords are not reissued. */
+    if (data.records.length <= PROMPTLIB_CAP_RECORDS && bytes() <= PROMPTLIB_CAP_BYTES) return 0;
+    const drop = Math.max(1, Math.floor(data.records.length * 0.10));
+    const gone = data.records.splice(-drop, drop);
+    persist();
+    return gone.length;
+  }
+
+  function exportJSON() {
+    return JSON.stringify({
+      schema: 'strata_promptlib_v1',
+      exported_at: new Date().toISOString(),
+      records: data.records,
+      nextRow: data.nextRow,
+    }, null, 2);
+  }
+
+  function capture({ prompt, reply, zone, sources }) {
+    const pText = String(prompt || '').slice(0, PROMPTLIB_MAX_PROMPT);
+    const rText = String(reply  || '').slice(0, PROMPTLIB_MAX_REPLY);
+    if (!pText && !rText) return { record: null, pruned: 0, failed: false };
+    /* Snapshot before ANY mutation so a two-strike quota failure can
+       be rolled back without leaving RAM out of sync with disk. */
+    const beforeRecords = data.records.slice();
+    const beforeNextRow = Object.assign({}, data.nextRow);
+    const cls = classify(pText + ' ' + rText);
+    const coord = coordFor(cls);       // increments data.nextRow[cls.col]
+    const rec = {
+      id: uid(),
+      at: new Date().toISOString(),
+      zone: zone || 'GREEN',
+      prompt: pText,
+      reply: rText,
+      class: cls.col,
+      className: cls.name,
+      coord: coord,
+      sources: Array.isArray(sources) ? sources.slice(0, 10) : [],
+      tags: [],
+    };
+    data.records.unshift(rec);
+    let pruned = 0;
+    if (!persist()) {
+      /* Quota rejection. Prune the oldest 10% and retry. The coord we
+         reserved is NOT decremented — a gap is honest; a re-used number
+         is a bug. */
+      const drop = Math.max(1, Math.floor(data.records.length * 0.10));
+      const gone = data.records.splice(-drop, drop);
+      pruned = gone.length;
+      if (!persist()) {
+        /* Still no room. Roll RAM back to the pre-capture state so it
+           matches whatever's on disk (or is empty if disk is also
+           unwritable). The coord counter is rolled back too — no write
+           ever landed, so no gap either. */
+        data.records = beforeRecords;
+        data.nextRow = beforeNextRow;
+        return { record: null, pruned: 0, failed: true };
+      }
+    }
+    pruned += enforceCap();
+    return { record: rec, pruned: pruned, failed: false };
+  }
+
+  function retrieve(query, opts) {
+    /* Rank library records by shared *content* tokens with the query.
+       Stopwords and one-character tokens are stripped from both sides
+       so a message containing "a" or "do" doesn't drag every record
+       into context. Pure — no writes, no fetches. */
+    const limit  = (opts && opts.limit)  || 3;
+    const budget = (opts && opts.budget) || 1200;
+    const qTokens = new Set(retrievalTokens(query));
+    if (!qTokens.size) return [];
+    const scored = [];
+    for (const r of data.records) {
+      const rTokens = retrievalTokens(r.prompt + ' ' + r.reply);
+      let hits = 0;
+      for (const t of rTokens) if (qTokens.has(t)) hits += 1;
+      if (hits > 0) scored.push({ r, hits });
+    }
+    scored.sort((a, b) => b.hits - a.hits || String(b.r.at).localeCompare(String(a.r.at)));
+    const out = [];
+    let used = 0;
+    for (const s of scored) {
+      const pSnip = String(s.r.prompt || '').replace(/\s+/g, ' ').slice(0, 120);
+      const rSnip = String(s.r.reply  || '').replace(/\s+/g, ' ').slice(0, 240);
+      const line = `${s.r.coord} (${String(s.r.at).slice(0, 10)}, ${s.r.zone}): ${pSnip} → ${rSnip}`;
+      if (used + line.length > budget) break;
+      out.push({ record: s.r, snippet: line });
+      used += line.length;
+      if (out.length >= limit) break;
+    }
+    return out;
+  }
+
+  function stats() {
+    const counts = {};
+    for (const r of data.records) counts[r.class] = (counts[r.class] || 0) + 1;
+    return {
+      total: data.records.length,
+      bytes: bytes(),
+      capRecords: PROMPTLIB_CAP_RECORDS,
+      capBytes: PROMPTLIB_CAP_BYTES,
+      counts,
+      nextRow: Object.assign({}, data.nextRow),
+    };
+  }
+
+  return {
+    capture,
+    retrieve,
+    classify,
+    stats,
+    exportJSON,
+    classes: () => PROMPTLIB_CLASSES.concat([PROMPTLIB_GENERAL]),
+    all: () => data.records.slice(),
+  };
+})();
+
+function promptlibText() {
+  const s = promptlib.stats();
+  const classes = promptlib.classes();
+  const kb = 1024;
+  const mb = kb * 1024;
+  const usedKB = (s.bytes / kb).toFixed(1);
+  const capMB  = (s.capBytes / mb).toFixed(1);
+  const lines = ['### Prompt Library', ''];
+  lines.push(`**Records:** ${s.total} / ${s.capRecords}`);
+  lines.push(`**Storage:** ${usedKB} KB used, ${capMB} MB cap.`);
+  lines.push('');
+  lines.push('**Drawers:**');
+  lines.push('');
+  for (const c of classes) {
+    const n = s.counts[c.col] || 0;
+    /* Always render the next coordinate — even an empty drawer has one
+       (row 1 for the first record filed there). */
+    const next = (s.nextRow[c.col] || 0) + 1;
+    lines.push(`- **${c.col} — ${c.name}**: ${n} record${n === 1 ? '' : 's'} — next coord ${c.col}${next}`);
+  }
+  lines.push('');
+  lines.push('Every completed pod exchange is captured automatically. ' +
+             'Coordinates are assigned in arrival order per drawer and never re-used, ' +
+             'so pruned or deleted records leave gaps rather than collide.');
+  lines.push('');
+  lines.push('Use `/promptlib export` to dump the whole archive as JSON — copy it ' +
+             'somewhere durable (Google Drive, OneDrive, a local file) so pruned ' +
+             'records can be recovered if the browser store runs out of room.');
+  return lines.join('\n');
+}
+
+function promptlibExportText() {
+  const json = promptlib.exportJSON();
+  const kb = (new TextEncoder().encode(json).length / 1024).toFixed(1);
+  return [
+    '### Prompt Library — export',
+    '',
+    `**Size:** ${kb} KB. Copy the block below and save it as JSON somewhere ` +
+      'durable. If the library later runs out of storage in this browser, ' +
+      'oldest records are pruned to make room, so keep the export current.',
+    '',
+    '```json',
+    json,
+    '```',
+  ].join('\n');
+}
 
 /* Search every KB store with the console's own retrieval kernel:
  * documents are chunk-ranked exactly like attachments; cards, notes,
@@ -1587,6 +1888,13 @@ function runCommand(text) {
     }
     case 'port':
       return { handled: true, markdown: true, message: PORT_NOTES };
+    case 'promptlib': {
+      const arg = (c.argument || '').toLowerCase();
+      if (arg === 'export') {
+        return { handled: true, markdown: true, message: promptlibExportText() };
+      }
+      return { handled: true, markdown: true, message: promptlibText() };
+    }
     case 'help':
       return { handled: true, markdown: true, message: helpText() };
   }
@@ -2121,6 +2429,17 @@ async function send() {
   const d = classifyInput(text);
   const routePath = route(d);
   let context = retrieveContext();
+  /* Past conversations from this browser's Prompt Library, ranked by
+     token overlap with the new message. Injected here so the pod
+     assistant can flag anything already tried — see the blueprint
+     ("Retrieve" pseudocode, docs/PROMPT_LIBRARY_BLUEPRINT.md). */
+  const priorHits = promptlib.retrieve(text);
+  if (priorHits.length) {
+    context += '\n\nPast conversations from the user\'s prompt library — ' +
+               'check whether this was tried before; if it failed, say so and ' +
+               'propose a different strategy:\n' +
+               priorHits.map((h) => '• ' + h.snippet).join('\n');
+  }
   const tone = TONES[zone] || TONES.GREEN;
   const template = synthesizeTemplate(d, routePath, context, tone, zone);
 
@@ -2301,6 +2620,23 @@ async function send() {
     store.addThread(text, zone);
     store.addChatTurn('user', text);
     store.addChatTurn('assistant', reply);
+    /* File the completed exchange into the Prompt Library — classified
+       into one of ten fixed drawers (A–J), given a per-drawer arrival
+       coord, and searched on the next message. Never overwrites the
+       existing stores; runs on a completed exchange only. A storage
+       failure is surfaced (rather than silently dropped) so the user
+       can export before more records are lost. */
+    try {
+      const r = promptlib.capture({ prompt: text, reply: reply, zone: zone, sources: used.slice() });
+      if (r && r.failed) {
+        note('⚠ Prompt Library is out of storage — this exchange was NOT captured. ' +
+             'Type /promptlib export to save the archive, then clear space.', true);
+      } else if (r && r.pruned) {
+        note(`⚠ Prompt Library at cap — the oldest ${r.pruned} record${r.pruned === 1 ? '' : 's'} ` +
+             'w' + (r.pruned === 1 ? 'as' : 'ere') + ' pruned to make room. ' +
+             'Use /promptlib export to save an archive before pruning happens again.', true);
+      }
+    } catch (e) { /* capture never breaks the send path */ }
     $('status').textContent = getStatus();
     if ($('autoread').checked) readAlong(pending, lastSpeakable);
   } finally {
