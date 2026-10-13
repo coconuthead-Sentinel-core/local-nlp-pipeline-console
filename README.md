@@ -111,8 +111,8 @@ answers "Requirement already satisfied", and changes nothing.
 
 ```powershell
 # 1. Get the code
-git clone https://github.com/coconuthead-Sentinel-core/strata-console.git
-cd strata-console
+git clone https://github.com/coconuthead-Sentinel-core/local-nlp-pipeline-console.git
+cd local-nlp-pipeline-console
 
 # 2. The shell (Edge WebView2 is already on Windows; no browser or
 #    server is installed, and no port is opened)

@@ -1,0 +1,4 @@
+# The browser Artifact snapshot is a byte-for-byte reference: its SHA256 is
+# published in CHANGELOG.md and must match the file on disk. Line-ending
+# conversion would silently break that check on Windows (core.autocrlf=true).
+strata_console_browser.html -text

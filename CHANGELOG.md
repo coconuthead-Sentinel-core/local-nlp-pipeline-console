@@ -38,6 +38,27 @@ desktop shell, engine, tools and tests are untouched.
   names the Prompt Library as the first browser-side feature scoped
   through the documentation gate.
 
+### Fixed
+- **The published Quick start no longer sends people to a repository
+  that does not exist.** The clone URL still named `strata-console`,
+  retired in the 2026-09-03 rename; step 1 of the only installation
+  instructions the project offers returned a 404. Now
+  `local-nlp-pipeline-console`, matching the actual remote.
+- **The snapshot integrity check now works on the platform the project
+  targets.** `strata_console_browser.html` was committed without a
+  line-ending rule, so with Git's `core.autocrlf=true` -- the Windows
+  default -- checkout rewrote 2,700 line endings and the working copy
+  arrived 111,263 bytes hashing to `99a99799...`. The byte count and
+  SHA256 published above were correct for the committed blob and wrong
+  for every file a Windows reader could actually hold, which is the
+  only file they can hash. A `.gitattributes` now marks the snapshot
+  `-text`, so it is never converted and the documented check answers
+  truthfully. Verified: on-disk file is 108,563 bytes, SHA256
+  `6e99db91ef61c656b0ffe1682408764f26f7bf42f660171569e4be888b2d9241`.
+- **Stray files cleared from the repository root** -- an empty `e.txt`,
+  the `.coverage` pytest-cov artifact, and a Windows shortcut to an
+  unrelated project. `.gitignore` gained `.coverage` and `*.lnk`.
+
 ## [2.2.0] — 2026-09-02
 
 The owner asked, fairly, whether the app was using too much memory and
