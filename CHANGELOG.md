@@ -19,11 +19,21 @@ desktop shell, engine, tools and tests are untouched.
 
 ### Added
 - **`strata_console_browser.html`** at the repository root — byte-for-byte
-  snapshot of the Strata Console browser Artifact. 108,563 bytes, SHA256
-  `6e99db91ef61c656b0ffe1682408764f26f7bf42f660171569e4be888b2d9241`.
+  snapshot of the Strata Console browser Artifact as served, the
+  publish-time `<head>` included. **Re-filed 2026-10-14 from the
+  2026-09-21 Artifact: 232,016 bytes, SHA256**
+  `8dede367a2ddc2ba56006970c2eb7e2dfc11a05d0ddb0a1749f9b59cb9f004ab`.
   Filed as the permanent on-repo reference alongside the Artifact link
   and the Google Docs / OneDrive record; a diff against that hash tells
   you whether this file still matches the published Artifact.
+
+  The snapshot it replaces was filed 2026-09-17 at 108,563 bytes and
+  SHA256 `6e99db91...`. The browser build more than doubled in the four
+  days after it, and the repository recorded none of that — so the
+  integrity line above was answering a question nobody could use: it
+  proved the file matched a September snapshot, while reading as though
+  it proved the file matched the published build. A stale snapshot is
+  worse than an absent one, because it looks like a record.
 - **[`docs/PROMPT_LIBRARY_BLUEPRINT.md`](docs/PROMPT_LIBRARY_BLUEPRINT.md)** —
   v1 blueprint for the browser build's Prompt Library. Ten fixed
   Dewey-style classes (A–J) with keyword-scored classification, one
@@ -37,6 +47,68 @@ desktop shell, engine, tools and tests are untouched.
   explains its relationship to the desktop app documented above it, and
   names the Prompt Library as the first browser-side feature scoped
   through the documentation gate.
+
+### Browser build — the record the repository was missing
+
+Recorded 2026-10-14, reconstructed from the build's own port notes
+(`/port` in the console). None of the following is desktop work: no
+Python was touched and the desktop shell, engine, tools and tests are
+unchanged. It is listed here because the repository is the record for
+both build targets, and for four days it was the record for only one.
+
+- **2026-09-18 — Dictation failure named before it happens.** A host
+  that embeds the page in a frame without delegating microphone access
+  hard-blocks dictation before any permission prompt appears. The
+  console detects that up front, dims **Speak**, and says why, rather
+  than offering a control that cannot work — the same law the desktop
+  learned at FB-002 and the interpreter rule.
+- **2026-09-18 — Images.** 📎 attaches PNG, JPEG, WebP or GIF and the
+  pod assistant sees the image itself while it stays attached. A second
+  lane beside the text one, not a new pipeline stage: pixels cannot be
+  chunk-ranked, so the image bypasses the retrieval kernel. **Web-only —
+  llama3.2:3b has no vision, so this cannot be ported.**
+- **2026-09-19 — Avatar Visualizer.** The orb in the top bar is a live
+  view of console state from real signals (processing, error, focus,
+  idle), specified as React/Tailwind and implemented as plain SVG in the
+  console's measured hues, honouring reduced motion.
+- **2026-09-19 — Omega-1.** Codex Glyph Legend v2: nine glyphs each
+  carrying a zone, a cognitive-load range and an AI instruction. Five
+  behavioral overlays (executive_focus, safe_mode, flow_state,
+  reflection_mode, crisis_triage) plus a 1-10 load dial.
+- **2026-09-19 — Export bridge.** Every knowledge-base item and tab
+  exports as a self-describing markdown record. Export reads the data
+  model, not the view, so the drawer's 700-character display clip never
+  truncates anything on its way out. It exists because a handoff filed
+  in browser-local storage cannot be read by anything outside that
+  browser: the human is the bridge, by design.
+- **2026-09-19 — The H5 build.** A 45-cell glyph x overlay interaction
+  matrix conditioning the assistant; card history, links and a startup
+  lifecycle pass (🎯 softens after 7 days, RED archive at 30, 🧊 exempt,
+  nothing ever deleted); Crisis Triage formalized as **manual-only** —
+  no keyword scoring and no automatic switching, naming real support
+  (988; text HOME to 741741) because a productivity tool should know
+  what it is not.
+- **2026-09-20 — Codex Expansion v3.8.** Six new glyphs adopted with
+  real instructions. The v3.8 meanings that would contradict v2 (🧊 as
+  mere stabilize, 🌊 as peace) were refused — one glyph, one meaning —
+  and 👥 multi-agent orchestration was declined outright: this console is
+  structurally Claude-only, and a key that pretends otherwise lies.
+- **2026-09-20 — The glyph keyboard.** An on-screen codex keyboard with
+  a grammar layer and a sequence bar that translates a chain as it is
+  built (Alt+K; Alt+1-0 for the core ten). It types into the same
+  message box a hardware keyboard does — one input path, never two.
+- **2026-09-20 — Chronofold declined, and the reasoning kept.** The H6
+  card asked for handshake engines and a lattice validator from
+  asynchronous circuit design. The field is real; the need here is not —
+  a browser page is single-threaded with run-to-completion semantics, so
+  the no-deadlock, no-race guarantee holds by construction, and
+  machinery that solves no problem is risk, not rigor. Recorded because
+  a refusal with a reason is an engineering decision, not a gap.
+- **2026-09-21 — Strata Sheets.** A working spreadsheet: cells A1-Z200,
+  formulas (SUM, AVERAGE, COUNT, MIN, MAX, ROUND, ABS), CSV in and out,
+  readable and writable by the assistant through page-defined tools. The
+  ask was LibreOffice-class; the answer was honest about why one page
+  cannot be a desktop office suite, and then built what it can be.
 
 ### Fixed
 - **The published Quick start no longer sends people to a repository

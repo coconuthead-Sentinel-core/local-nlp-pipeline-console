@@ -56,11 +56,12 @@ body {
   font-family: var(--font);
   font-size: var(--text);
   line-height: 1.6;
-  display: grid;
-  /* Rows that cannot silently vanish: the transcript takes what is left
-     and scrolls. (Seventh row: the Knowledge Base drawer — collapsed to
-     nothing while hidden.) */
-  grid-template-rows: auto 1fr auto auto auto auto auto;
+  display: flex;
+  flex-direction: column;
+  /* The transcript takes what is left and scrolls; every drawer row —
+     the avatar panel, the Knowledge Base, the glyph keyboard — collapses
+     to nothing while hidden. Flex, not counted grid rows: drawers can
+     come and go without anything landing in the wrong track. */
   gap: 8px;
   padding-block: 10px 12px;
   padding-inline: 16px;
@@ -142,6 +143,7 @@ select.ctl { padding-right: 8px; }
   padding: 0 6px;
 }
 .check input { width: 24px; height: 24px; accent-color: var(--fill); }
+.check input[type=range] { width: 96px; height: auto; accent-color: var(--fill); }
 
 /* A desktop-only control stays visible and says why, rather than
    vanishing — the delta between the builds is documented in the UI. */
@@ -232,6 +234,7 @@ select.ctl { padding-right: 8px; }
   border-radius: 8px;
   padding: 14px 18px;
   overflow-y: auto;
+  flex: 1 1 0;
   min-height: 0;
 }
 
@@ -362,6 +365,137 @@ select.ctl { padding-right: 8px; }
 .kb-zone.YELLOW { color: var(--yellow-hi); border-color: var(--yellow-hi); }
 .kb-zone.RED    { color: var(--red-hi);    border-color: var(--red-hi); }
 .kb-coord { font-family: ui-monospace, Consolas, monospace; font-size: .85em; color: var(--ink-mute); }
+.kb-search { margin-bottom: 8px; }
+.kb-search input {
+  flex: 1 1 16ch; min-width: 0; font: inherit; font-size: .9em;
+  color: var(--ink); background: var(--ground);
+  border: 1px solid var(--outline); border-radius: 6px;
+  padding: 8px 10px; min-height: 44px;
+}
+.kb-search input::placeholder { color: var(--ink-mute); }
+
+/* --- avatar ------------------------------------------------------------
+   The AvatarVisualizer, ported from its React/Tailwind directions into
+   the console's own idiom: vanilla SVG, the console's measured hues, and
+   real signals rather than demo sliders. Compact in the top bar; the
+   full view is a drawer row, so the transcript never loses its room. */
+.av-btn {
+  width: 52px; height: 52px; padding: 2px; flex: none;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 1px solid var(--frame);
+  cursor: pointer;
+}
+.av-btn svg { width: 100%; height: 100%; display: block; }
+.av {
+  background: var(--surface);
+  border: 1px solid var(--frame);
+  border-radius: 8px;
+  padding: 14px 18px;
+  display: flex; gap: 22px; align-items: center; justify-content: center;
+  flex-wrap: wrap;
+}
+.av > svg { width: min(230px, 55vw); height: auto; flex: none; }
+.av-stats { font-size: .9em; color: var(--ink-mute); line-height: 1.9; }
+.av-stats b { color: #8FBEDA; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+/* --- glyph keyboard ----------------------------------------------------
+   The Phase-1 input panel: two banks of codex keys, the grammar
+   operators, and a sequence bar that translates the chain as it is
+   built. A drawer like the others — bounded, collapsed while hidden —
+   sitting directly above the message box it types into. */
+.kbd {
+  background: var(--surface);
+  border: 1px solid var(--frame);
+  border-radius: 8px;
+  padding: 10px 14px;
+  max-height: 42vh;
+  overflow-y: auto;
+}
+.kbd-rows { display: flex; flex-direction: column; gap: 4px; }
+.kbd-row { display: flex; gap: 6px; flex-wrap: wrap; }
+.kbd-lbl {
+  font-size: .72em; color: var(--ink-mute);
+  letter-spacing: .06em; text-transform: uppercase; margin: 4px 0 0;
+}
+.kbd-key {
+  font: inherit; color: var(--ink);
+  background: var(--ground);
+  border: 1px solid var(--outline);
+  border-radius: 6px;
+  min-width: 56px; min-height: 48px;
+  padding: 4px 8px; cursor: pointer;
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; gap: 1px;
+}
+.kbd-key:hover { background: #242B33; }
+.kbd-key:active { transform: scale(.96); }
+.kbd-key .kg { font-size: 1.15em; line-height: 1.2; }
+.kbd-key .kn {
+  font-size: .55em; letter-spacing: .04em; color: var(--ink-mute);
+  text-transform: uppercase; white-space: nowrap;
+}
+.kbd-key.dim { opacity: .45; }
+.kbd-key.op { min-width: 48px; }
+.kbd-seq {
+  display: flex; gap: 10px; flex-wrap: wrap; align-items: baseline;
+  border-top: 1px solid var(--frame);
+  margin-top: 10px; padding-top: 8px;
+  font-size: .9em;
+}
+.kbd-seq .chain { font-size: 1.05em; }
+.kbd-seq .trans { color: var(--ink-mute); }
+.kbd-seq .ok { color: var(--green-hi); font-weight: 600; }
+.kbd-seq .warn { color: #E7B6B6; }
+
+/* --- sheets ------------------------------------------------------------
+   Strata Sheets — a working spreadsheet, in the console's own idiom.
+   A drawer like the others: bounded, collapsed while hidden. The grid
+   scrolls inside the drawer with sticky headers, so a big sheet never
+   steals the transcript's room. */
+.sheet {
+  background: var(--surface);
+  border: 1px solid var(--frame);
+  border-radius: 8px;
+  padding: 10px 14px;
+  max-height: 46vh;
+  overflow: auto;
+}
+.sh-bar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 8px; }
+.sh-bar select, .sh-bar input[type=text] {
+  font: inherit; font-size: .9em; color: var(--ink);
+  background: var(--ground); border: 1px solid var(--outline);
+  border-radius: 6px; padding: 8px 10px; min-height: 40px;
+}
+.sh-fx { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+.sh-fx .sh-addr {
+  font-family: ui-monospace, Consolas, monospace;
+  color: var(--ink-mute); min-width: 4ch; text-align: right;
+}
+.sh-fx input {
+  flex: 1 1 auto; min-width: 0;
+  font-family: ui-monospace, Consolas, monospace; font-size: .9em;
+  color: var(--ink); background: var(--ground);
+  border: 1px solid var(--outline); border-radius: 6px;
+  padding: 8px 10px; min-height: 40px;
+}
+table.sh-grid { border-collapse: collapse; }
+.sh-grid th {
+  font-size: .72em; color: var(--ink-mute); font-weight: 600;
+  padding: 2px 6px; background: var(--surface);
+}
+.sh-grid thead th { position: sticky; top: 0; z-index: 2; }
+.sh-grid th.rowh { position: sticky; left: 0; z-index: 1; text-align: right; }
+.sh-grid td { padding: 0; border: 1px solid var(--frame); }
+.sh-grid td input {
+  width: 12ch; font-family: ui-monospace, Consolas, monospace;
+  font-size: .85em; color: var(--ink); background: var(--ground);
+  border: 0; padding: 6px 8px;
+}
+.sh-grid td input:focus { outline: 2px solid var(--focus); outline-offset: -2px; }
+.sh-grid td input.numeric { text-align: right; }
+.sh-grid td input.err { color: #E7B6B6; }
+.sh-hint { color: var(--ink-mute); font-size: .82em; margin: 6px 0 0; }
 
 /* --- read-along ------------------------------------------------------- */
 .s { border-radius: 3px; transition: background-color .12s ease; }
@@ -405,7 +539,19 @@ select.ctl { padding-right: 8px; }
   <p id="status" class="status" role="status" aria-live="polite">Starting…</p>
   <output id="ram" class="size"
           title="JS heap this page is using — the browser build's honest stand-in for the desktop RAM readout"></output>
+  <button id="avatar" class="av-btn" type="button" aria-expanded="false"
+          aria-controls="av-panel" aria-label="Avatar — console state"
+          title="Avatar — a live view of the console's state. Click for the full view and metrics.">
+    <svg id="av-mini" viewBox="0 0 100 100" aria-hidden="true" focusable="false"></svg>
+  </button>
 </header>
+
+<!-- Avatar Visualizer — full view. A drawer row like the Knowledge Base:
+     bounded, and collapsed to nothing while hidden. -->
+<section id="av-panel" class="av" aria-label="Avatar visualizer" hidden>
+  <svg id="av-big" viewBox="0 0 100 100" aria-hidden="true" focusable="false"></svg>
+  <div id="av-stats" class="av-stats"></div>
+</section>
 
 <main id="log" class="log" tabindex="0" role="log" aria-live="polite"
       aria-label="Conversation transcript"></main>
@@ -418,6 +564,14 @@ select.ctl { padding-right: 8px; }
           title="Whisper tiers are a desktop feature — the browser supplies a single speech engine.">
     <option>Browser engine</option>
   </select>
+
+  <select id="overlay" class="ctl" aria-label="Behavioral overlay"
+          title="Omega-1 behavioral overlay — conditions how the assistant answers: tone, pacing, chunking. /overlay lists them."></select>
+  <label class="check" for="cogload"
+         title="Target cognitive load for answers — 1 is minimal (very short, one idea at a time), 10 is full depth.">
+    Load&nbsp;<input type="range" id="cogload" min="1" max="10" step="1">
+  </label>
+  <output id="cogload-out" class="size" aria-live="polite"></output>
 
   <button id="read" class="ctl" type="button" aria-pressed="false">
     <span aria-hidden="true">🔊</span> Read
@@ -457,6 +611,11 @@ select.ctl { padding-right: 8px; }
           aria-controls="kb-panel">
     <span aria-hidden="true">🗂</span> Knowledge Base
   </button>
+  <button id="sheet-open" class="ctl" type="button" aria-expanded="false"
+          aria-controls="sheet-panel"
+          title="Strata Sheets — a working spreadsheet in the console: cells A1–Z200, formulas (=SUM(A1:A5), AVERAGE, COUNT, MIN, MAX, ROUND, ABS), CSV in and out. The assistant can read it, and write to it when you ask.">
+    <span aria-hidden="true">📊</span> Sheets
+  </button>
 
   <button id="upload" class="ctl" type="button">
     <span aria-hidden="true">📎</span> Upload document
@@ -476,9 +635,23 @@ select.ctl { padding-right: 8px; }
      other source — and the assistant's writes go through page-defined
      tools, applied locally, logged, and reported in the transcript. -->
 <section id="kb-panel" class="kb" aria-label="Knowledge base" hidden>
+  <div class="kb-row kb-search">
+    <label class="sr" for="kb-q">Search the knowledge base by cell or keywords</label>
+    <input type="text" id="kb-q"
+           placeholder="Cell (H5) or keywords — zone chips narrow where I look"
+           title="Type a cell like H5 to jump straight to that card, or keywords to search all five stores. The GREEN/YELLOW/RED chips narrow a cell search to one zone.">
+    <button id="kb-go" class="ctl" type="button">🔎 Search</button>
+  </div>
   <div class="kb-tabs" role="tablist" aria-label="Knowledge base sections"></div>
   <div id="kb-body"></div>
 </section>
+
+<!-- Strata Sheets — a working spreadsheet in the console's own idiom.
+     Its own storage key, fully separate from the conversation and the
+     Knowledge Base; the pod assistant reaches it only through
+     page-defined tools, applied locally, logged, and reported.
+     Rendered by shRender(). -->
+<section id="sheet-panel" class="sheet" aria-label="Sheets" hidden></section>
 
 <div class="modes" role="radiogroup" aria-label="Operating mode">
   <button class="mode" data-zone="GREEN"  role="radio" aria-checked="true" type="button">
@@ -492,7 +665,18 @@ select.ctl { padding-right: 8px; }
   </button>
 </div>
 
+<!-- Glyph keyboard — the Phase-1 input panel. A drawer row like the
+     others: bounded, collapsed to nothing while hidden. It TYPES INTO
+     the same message box a hardware keyboard does — one input path,
+     never two. Rendered by kbdRender(). -->
+<section id="kbd-panel" class="kbd" aria-label="Glyph keyboard" hidden></section>
+
 <form id="composer" class="composer" autocomplete="off">
+  <button id="kbd-open" class="ctl" type="button" aria-expanded="false"
+          aria-controls="kbd-panel"
+          title="On-screen codex keyboard — tap glyphs into the message. Alt+K toggles it; Alt+1–0 type the core ten glyphs anywhere.">
+    <span aria-hidden="true">⌨</span> Glyphs
+  </button>
   <label class="sr" for="msg">Message</label>
   <textarea id="msg" rows="1" placeholder="Type a message, or press Speak…"></textarea>
   <button id="send" class="ctl send" type="submit">Send</button>
@@ -510,8 +694,8 @@ select.ctl { padding-right: 8px; }
  * speech.py, retrieval.py, context_sources.py, and the five pipeline
  * stages of strata_core.py.
  *
- * One seat changed occupants. Where the desktop engine holds an Ollama
- * client (llama3.2:3b, loopback only), this build holds a POD ASSISTANT:
+ * One seat changed occupants. Where the desktop engine holds a locally
+ * hosted model (loopback only), this build holds a POD ASSISTANT:
  * the page asks Claude at runtime, with the viewer's permission, using
  * the same prompt structure, the same mode conditioning, and the same
  * honest fallback — when the pod assistant is unavailable, the
@@ -523,16 +707,55 @@ const log = $('log');
 
 /* ---------- operator token lexicon (strata_core.GLYPH_CODEX) ---------- */
 
+/* Codex Glyph Legend v2 (adopted 2026-09-19, from the Strata Console v2
+ * handoff). Each glyph now carries its zone, cognitive load range and
+ * the AI instruction that conditions the pod assistant when the glyph
+ * rides in a message. ⭕ 🔮 🤝 stay as legacy tokens so established
+ * habits still classify. 🧊 Golden Source is the one the archive rule
+ * honours: a 🧊 card never expires. */
 const GLYPHS = [
-  { glyph: '🔺', name: 'TRANSFORM',   fn: 'Transform input' },
-  { glyph: '🧊', name: 'STABILIZE',   fn: 'Logic / structure' },
-  { glyph: '🔸', name: 'PROCESS',     fn: 'Process' },
-  { glyph: '⭕', name: 'SENTIMENT',   fn: 'Tone / sentiment' },
-  { glyph: '💠', name: 'REFLECT',     fn: 'Self-reference' },
-  { glyph: '🌀', name: 'EXPAND',      fn: 'Iterate / grow' },
-  { glyph: '🔮', name: 'MAP',         fn: 'Concept mapping' },
-  { glyph: '🥥', name: 'AUTHOR',      fn: 'Author intent' },
-  { glyph: '🤝', name: 'COLLABORATE', fn: 'Collaboration' },
+  { glyph: '🔺', name: 'EXECUTE', fn: 'Immediate action', zone: 'GREEN', load: [1, 3],
+    instr: 'The user wants immediate action; be direct and executable.' },
+  { glyph: '🧊', name: 'GOLDEN_SOURCE', fn: 'Authoritative / canonical', zone: 'YELLOW', load: [2, 4],
+    instr: 'Treat the referenced material as canonical and archived; it never expires.' },
+  { glyph: '🔸', name: 'ANALYZE', fn: 'Review / processing', zone: 'RED', load: [4, 6],
+    instr: 'This needs review: pause and structure the answer before giving it.' },
+  { glyph: '🌀', name: 'ITERATE', fn: 'Growth / expansion', zone: 'VARIES', load: [3, 5],
+    instr: 'Growth and expansion: suggest concrete next steps.' },
+  { glyph: '🥥', name: 'COCONUT', fn: 'Joy / delight', zone: 'VARIES', load: [1, 2],
+    instr: 'Coconut Protocol: add warmth and contextual humor.' },
+  { glyph: '💠', name: 'CORE', fn: 'Central / essential', zone: 'GREEN', load: [2, 4],
+    instr: 'A central, essential concept: keep the answer anchored to it.' },
+  { glyph: '⚪', name: 'ANCHOR', fn: 'Reference point', zone: 'YELLOW', load: [1, 3],
+    instr: 'A fixed reference point: do not change or reinterpret it.' },
+  { glyph: '🌊', name: 'WAVE', fn: 'Uncertainty / experimentation', zone: 'RED', load: [5, 7],
+    instr: 'Experimental and uncertain: hold conclusions loosely and say what is unknown.' },
+  { glyph: '🎯', name: 'TARGET', fn: 'Goal / destination', zone: 'GREEN', load: [2, 5],
+    instr: 'A goal: track progress toward it and say how far along things are.' },
+  /* v3.8 expansion glyphs (adopted 2026-09-20, from the keyboard
+   * handoff's Codex Expansion v3.8): six of the new lexicon's glyphs
+   * whose meanings COEXIST with the v2 legend, adopted with real
+   * instructions so they condition the pod assistant exactly like the
+   * rest. The v3.8 meanings that would CONTRADICT v2 (🧊 as mere
+   * stabilize, 🌊 as peace) were not adopted — one glyph, one meaning.
+   * 👥 multi-agent orchestration was declined outright: this console is
+   * structurally Claude-only, and a key that pretends otherwise lies. */
+  { glyph: '🔷', name: 'UNITY', fn: 'Synthesis / holistic view', zone: 'YELLOW', load: [4, 6], x38: true,
+    instr: 'Synthesize: draw the threads into one coherent whole and name what unifies them.' },
+  { glyph: '🐍', name: 'CYCLE', fn: 'Refinement loop / eternal return', zone: 'VARIES', load: [3, 6], x38: true,
+    instr: 'A refinement loop: treat this as one pass of an ongoing cycle and end with what the next pass should check.' },
+  { glyph: '⚡', name: 'URGENT', fn: 'Urgency / high priority', zone: 'GREEN', load: [1, 3], x38: true,
+    instr: 'High priority: answer the time-critical part first and explicitly defer the rest.' },
+  { glyph: '🌳', name: 'WISDOM', fn: 'Long view / durable principles', zone: 'RED', load: [3, 5], x38: true,
+    instr: 'Take the long view: ground the answer in durable principles rather than quick fixes.' },
+  { glyph: '🔄', name: 'RESONANCE', fn: 'Consistency / harmonize', zone: 'YELLOW', load: [3, 5], x38: true,
+    instr: 'Harmonize: keep the answer consistent with what is already established in this session.' },
+  { glyph: '🔗', name: 'LINK', fn: 'Connect / thread', zone: 'VARIES', load: [2, 4], x38: true,
+    instr: 'Connect: tie the answer explicitly to the related material already in play, naming it.' },
+  /* legacy tokens — no v2 metadata, but they still classify and light the avatar */
+  { glyph: '⭕', name: 'SENTIMENT', fn: 'Tone / sentiment (legacy)' },
+  { glyph: '🔮', name: 'MAP', fn: 'Concept mapping (legacy)' },
+  { glyph: '🤝', name: 'COLLABORATE', fn: 'Collaboration (legacy)' },
 ];
 
 /* ---------- persistence (SQLite → localStorage, same semantics) -------
@@ -563,8 +786,8 @@ const store = (() => {
     threadCount() { return mem.rows.length - mem.floor; },
     archivedCount() { return mem.rows.length; },
     /* Conversation recall for the pod assistant. The desktop engine
-       could hand its 3B model only 40-character snippets of the last
-       three inputs — its 2048-token window left no room for more. The
+       could hand its local model only 40-character snippets of the last
+       three inputs — its small context window left no room for more. The
        pod assistant has the room, so the recent turns themselves are
        kept and sent back, still governed by the same clear floor. */
     addChatTurn(role, content) {
@@ -684,12 +907,18 @@ const COMMANDS = {
   status:  'Show the current mode, assistant and memory depth.',
   lexicon: 'List the operator tokens and what each one does.',
   mode:    'Switch mode: /mode green | yellow | red.',
-  kb:      'Knowledge base: /kb — counts and recent activity; /kb open | close.',
+  kb:      'Knowledge base: /kb — counts; /kb open | close | export (current tab → clipboard, full bodies).',
+  avatar:  'Avatar: /avatar — open or close the full view of the console state.',
+  keyboard: 'Glyph keyboard: /keyboard — open the on-screen codex keyboard (Alt+K; Alt+1–0 type the core ten); /keyboard close.',
+  sheet:   'Sheets: /sheet — open or close the spreadsheet drawer; /sheet export — copy the active sheet as CSV.',
+  overlay: 'Omega-1 overlays: /overlay — list modes; /overlay <name> | off.',
+  find:    'Find: /find H5 — jump to a cell; /find <keywords> — search all five stores. Opens the drawer with results.',
+  export:  'Export session: /export — copy a portable context package (mode, overlay, load, glyphs, recall, KB counts) to the clipboard.',
   clear:   'Clear the window and what the assistant recalls.',
   port:    'What carried over from the desktop console, and what could not.',
   help:    'Show this list.',
 };
-const ALIASES = { zone: 'mode', new: 'clear' };
+const ALIASES = { zone: 'mode', new: 'clear', kbd: 'keyboard', keys: 'keyboard', sheets: 'sheet' };
 
 function parseCommand(text) {
   const raw = (text || '').trim();
@@ -713,8 +942,16 @@ function helpText() {
 }
 
 function lexiconText() {
-  const lines = ['### Operator Token Lexicon', ''];
-  for (const g of GLYPHS) lines.push(`- ${g.glyph}  **${g.name}** — ${g.fn}`);
+  const lines = ['### Codex Glyph Legend (v2)', ''];
+  for (const g of GLYPHS) {
+    lines.push(`- ${g.glyph}  **${g.name}** — ${g.fn}` +
+      (g.zone ? ` · zone ${g.zone}` : '') +
+      (g.load ? ` · load ${g.load[0]}–${g.load[1]}` : '') +
+      (g.x38 ? ' · v3.8 expansion' : ''));
+  }
+  lines.push('', 'A glyph in a message conditions the assistant with its instruction. ' +
+    'On knowledge-base cards it drives filtering, load-sorted display, and the ' +
+    '30-day archive rule — 🧊 Golden Source cards never expire.');
   return lines.join('\n');
 }
 
@@ -725,13 +962,25 @@ const PORT_NOTES = [
   '',
   '**Carried over intact** — the five pipeline stages (classify → route → retrieve → condition → synthesize), slash commands and their grammar, operator tokens, the three operating modes with persistence, read-along with sentence highlight and word underline, spoken punctuation while dictating, the speakable normalizer (numbers, money, years, code held atomic), upload retrieval with chunk ranking, and the clear floor — clearing archives, it never deletes.',
   '',
-  '**Adapted** — the assistant: a **pod assistant** (Claude, asked by this page with your permission) sits where `llama3.2:3b` sat; the deterministic template engine remains the fallback, exactly as on the desktop. Dictation: the browser\'s speech engine replaces Whisper. Telemetry: the JS heap readout stands in for free system RAM. Mode → temperature became mode → model tier plus voice conditioning, since a page cannot set sampling temperature. Zone colours: a darkened hue is not that hue — dark yellow reads brown and dark red reads purple — so no darkened fills remain: at rest each mode is neutral with its hue at full saturation in the dot and border, and the active mode takes the full hue with dark text, every pair re-measured to WCAG AA.',
+  '**Adapted** — the assistant: a **pod assistant** (Claude, asked by this page with your permission) sits where the desktop build\'s locally hosted model sat; the deterministic template engine remains the fallback, exactly as on the desktop. Dictation: the browser\'s speech engine replaces Whisper — but only where the mic can reach it: a host that embeds this page in a frame without delegating microphone access hard-blocks dictation before any permission prompt, and the console detects that up front, dims **Speak**, and says why (2026-09-18). Telemetry: the JS heap readout stands in for free system RAM. Mode → temperature became mode → model tier plus voice conditioning, since a page cannot set sampling temperature. Zone colours: a darkened hue is not that hue — dark yellow reads brown and dark red reads purple — so no darkened fills remain: at rest each mode is neutral with its hue at full saturation in the dot and border, and the active mode takes the full hue with dark text, every pair re-measured to WCAG AA.',
   '',
-  '**Upgraded** — conversation recall. The desktop engine\'s 2048-token window allowed only 40-character snippets of the last three inputs; the pod assistant has the room, so the recent turns themselves (yours and its, bounded) are stored, survive a reload, and ride along with each message. The clear floor still governs: **Clear** archives them out of recall without deleting anything. And the desktop\'s ☁ source returns as **☁ Google Drive**: tick it and the console live-searches your own Drive through your claude.ai connector, reads the most relevant files — Google Sheets come back as tables — and cites what it read, asking your permission in the page first. And 🌐 web search returns as well, through your Exa connector — the box works, and so does simply typing "search the web for …".',
+  '**Upgraded** — conversation recall. The desktop engine\'s small context window allowed only 40-character snippets of the last three inputs; the pod assistant has the room, so the recent turns themselves (yours and its, bounded) are stored, survive a reload, and ride along with each message. The clear floor still governs: **Clear** archives them out of recall without deleting anything. And the desktop\'s ☁ source returns as **☁ Google Drive**: tick it and the console live-searches your own Drive through your claude.ai connector, reads the most relevant files — Google Sheets come back as tables — and cites what it read, asking your permission in the page first. And 🌐 web search returns as well, through your Exa connector — the box works, and so does simply typing "search the web for …". And the console can now examine **images** (2026-09-18): attach a PNG, JPEG, WebP or GIF with 📎 and the pod assistant sees the image itself with each message while it stays attached. It is a second lane beside the text one, not a new pipeline stage — pixels cannot be chunk-ranked, so the image bypasses the retrieval kernel and rides with the call. The page checks the view\'s image allowance first (a free, local check) and says so honestly when images can\'t be sent. Web-only: the desktop build\'s locally hosted model has no vision.',
   '',
-  '**Integrated** — the Sentinel Forge Study Workstation\'s knowledge stores now live in the console under **🗂 Knowledge Base**: a **Library** (paste or upload passages), **note cards** with cell addresses (A1–Z999), zones and cognitive load, **Notes**, a **Journal**, and a **Glossary**. They sit in this browser under their own storage key, fully separate from the conversation stores — neither can touch the other. Tick **🗂 Knowledge** and the console searches all five stores with the same retrieval kernel that reads attachments, and hands the ranked passages to the pod assistant as contextual memory — a local search, never a cloud call. The assistant can also write: ask it to capture a card, save a note, journal the session, or define a term, and it does so through tools this page defines — every write is applied locally, logged, and reported in the transcript. `/kb` shows the counts; `/kb open` opens the drawer.',
+  '**Integrated** — the Sentinel Forge Study Workstation\'s knowledge stores now live in the console under **🗂 Knowledge Base**: a **Library** (paste or upload passages), **note cards** with cell addresses (A1–Z999), zones and cognitive load, **Notes**, a **Journal**, and a **Glossary**. They sit in this browser under their own storage key, fully separate from the conversation stores — neither can touch the other. Tick **🗂 Knowledge** and the console searches all five stores with the same retrieval kernel that reads attachments, and hands the ranked passages to the pod assistant as contextual memory — a local search, never a cloud call. The assistant can also write: ask it to capture a card, save a note, journal the session, or define a term, and it does so through tools this page defines — every write is applied locally, logged, and reported in the transcript. `/kb` shows the counts; `/kb open` opens the drawer. And the **Avatar Visualizer** joined the console (2026-09-19): the small orb in the top bar is a live view of the console\'s state, drawn from real signals — processing while the assistant works, error for a few seconds after a failure, focus while you are typing (tinted with the active mode\'s hue), idle when quiet; its glow tracks recall and knowledge-base depth, its size tracks load, its spin tracks your activity, and the operator tokens in your newest message light their shapes around it. Click it or `/avatar` for the full view with the metrics readout. It was specified as a React/Tailwind component; it lives here as the same drawing in plain SVG, in the console\'s measured hues, honouring reduced motion.',
   '',
-  '**Did not port** — Whisper tiers and the RAM budget (no model is resident here), `.docx`/`.pdf`/`.xlsx` upload extraction (text formats only in the browser — though Drive files of those types read fine through the connector), and the **local-first guarantee itself**: the pod assistant, the web search and the Drive bridge are all cloud calls made with your permission. The desktop console remains the local-first build; this page is the same application layer demonstrating that the pipeline, not the model, is the product.',
+  '**Omega-1** — the Strata Console v2 handoff landed (2026-09-19), translated from its React/Tailwind/IndexedDB spec into this page\'s own idiom: no framework was added, and persistence, auto-load, journal and glossary already lived here. The **Codex Glyph Legend v2** replaces the old token meanings — 🔺 Execute · 🧊 Golden Source · 🔸 Analyze · 🌀 Iterate · 🥥 Coconut Protocol · 💠 Core · ⚪ Anchor · 🌊 Wave · 🎯 Target — each carrying a zone, a cognitive load range, and an AI instruction that conditions the pod assistant whenever the glyph rides in a message (`/lexicon` shows the legend; ⭕ 🔮 🤝 remain as legacy tokens). Five **behavioral overlays** shape how answers arrive — executive_focus, safe_mode, flow_state, reflection_mode, crisis_triage — switched from the toolbar or `/overlay`, beside a **load dial** (1–10) that calibrates chunking and depth; every answer now opens with a header naming its time, mode, overlay and load. Knowledge-base **cards take a glyph**, filter by glyph and zone chips, list lightest-load first, and cards older than 30 days move to the RED zone at startup — 🧊 never expires, and nothing is ever deleted. The overlays are tone and pacing, honestly framed: this console is a productivity tool, not crisis care, and crisis_triage\'s own conditioning says so.',
+  '',
+  '**Export bridge** (2026-09-19) — the knowledge base learned to hand its contents OUT. Every item grew a **⧉ Copy** button and every tab a **⧉ Export tab** button (also `/kb export`): each item serializes to a self-describing markdown record — heading, one metadata line with ISO 8601 timestamps, and the FULL body — and an export bundles the current tab under a package header, honoring the card filters, so "all GREEN 🔺 cards" is one filter plus one click. Textbook separation of concerns: the drawer clips bodies at 700 characters for display, a view decision — export always reads the data model, the single source of truth, so nothing is ever truncated on its way out. The clipboard write degrades gracefully (async Clipboard API, then the legacy path) and reports honestly when it fails. Why it exists: a handoff filed in this browser-local knowledge base cannot be read by anything outside this browser — the export puts the complete package in the user\'s hands, and the user carries it across. The human is the bridge, by design.',
+  '',
+  '**The H5 build** (2026-09-19) — the five-feature handoff filed at cell H5 landed, carried across by the export bridge and translated from its TypeScript/React/IndexedDB spec into this page\'s idiom. **The glyph-mode interaction matrix**: 45 decision cells (9 glyphs × 5 overlays) now condition the pod assistant — the same 🔺 asks for two steps in flow_state and exactly one in crisis_triage; a missing cell falls back to the glyph\'s reflection row, and the spec\'s auto-escalations became one quiet suggestion note, never a switch. **Card metadata**: every glyph change is recorded in the card\'s history (↺ in the meta; the full trail rides with ⧉ Copy), cards can be linked (blocks, depends on, references, child of, related to) through the assistant\'s linkCards tool, and the startup lifecycle pass now also softens 🎯 Targets older than 7 days to 🌀 before the 30-day RED archive — 🧊 exempt from both, nothing ever deleted. **Crisis Triage, formalized and manual-only**: the user activates it, never the console — no keyword scoring, no automatic switching, by the user\'s explicit decision; a session logs its start and end to the journal, eases the load dial to 3 (a starting point, not a lock), checks in gently every 30 minutes, and names real support (988; text HOME to 741741) at the start, because a productivity tool should know what it is not. **The avatar** now glides between overlay states over ~800 ms — flow accelerates and brightens, safe mode settles, crisis compresses the field and dims every glyph but 🔺. **/find** searches by cell or keywords (the zone chips narrow a cell search), and **/export** packages the whole session — mode, overlay, load, glyphs, recall — as one portable context block for the clipboard. Declined from the spec, with reasons: automatic stress detection (keyword counting is not a clinical instrument and silent emotional scoring inverts user control), Three.js/Cesium (the SVG engine already draws these shapes), and the API-orchestration layer (this page holds no keys and is structurally Claude-only).',
+  '',
+  '**Chronofold, honestly** (2026-09-20) — the H6 card asked for handshake engines and a lattice validator from asynchronous circuit design. The field is real; the need here is not: a browser page runs single-threaded with run-to-completion semantics, so the no-deadlock, no-race guarantee the protocol promises already holds by construction, and machinery that solves no problem is risk, not rigor. But the card\'s instinct found one true timing hazard — the pod call is the page\'s one genuinely asynchronous act, and until now a mode or dial changed WHILE an answer streamed would stamp the response header with the new settings, not the ones that shaped the reply. So the honest kernel shipped: **snapshot-at-dispatch** — the instant Send is pressed the turn freezes its zone, overlay and load, and the prompt conditioning, matrix lookups, model tier, template, thread record and header all read only the frozen copy; each turn is an immutable element no later event can rewrite. And a **logical turn clock** — a persisted monotonic counter, the single-writer case of a Lamport clock — stamps every answer\'s header (#N) into a total order that survives reloads. Hover a header to see what it means.',
+  '',
+  '**The glyph keyboard** (2026-09-20) — the Phase-1 keyboard handoff (cells H5/H6/H14, the grammar layer at H9, the Codex Expansion v3.8 at H4) landed, translated as ever from its React/TypeScript spec into this page\'s idiom: no framework, and no second input pipeline — the keyboard is a drawer of buttons that TYPE INTO the same message box a hardware keyboard does. The **⌨ Glyphs** button beside the message box (also `/keyboard`, or **Alt+K**) opens **eighteen glyph keys in two banks**: the nine Codex v2 glyphs the console already conditions on, then the three legacy tokens plus **six v3.8 expansion glyphs adopted into the legend** — 🔷 Unity · 🐍 Cycle · ⚡ Urgent · 🌳 Wisdom · 🔄 Resonance · 🔗 Link — each with a real AI instruction, so an expansion glyph conditions the pod assistant exactly like the rest (`/lexicon` shows all of them). Below the banks sit the grammar operators (→ + ↔ within, with grouping parens), Space and Backspace. Every key names its function, zone and load on hover; a tap inserts at the cursor and the box keeps focus; **Alt+1–0** type the spec\'s number-row ten from anywhere. The **sequence bar** reads the message as you build it — the chain, its plain-English translation, and the grammar layer\'s verdict (chains open with an action glyph, cap at seven, no doubled glyphs, ↔ pairs exactly two) — advisory always: a hint is never a gate, and Send remains the only trigger. The keys honor the **load dial**: a glyph whose load range starts above the dial dims but stays usable — information, not a lock — and the last six glyphs used sit in a Recent row that survives reloads. Declined from the keyboard cards, with reasons: auto-executing sequences on chain completion (an input device must never fire the send), single-letter global hotkeys G/Y/R/V/T (they would fire while typing in a chat-first page; Alt-chords instead), the tone-recipe selector (the Omega-1 overlays already condition tone — a second tone system would fight the first), the macro recorder (deferred until the sequence bar proves the grammar earns it), 👥 multi-agent orchestration (structurally Claude-only, and honestly so), and tone analytics / partner tone matching / emotional trajectory charts (silent emotional scoring of conversations inverts user control — declined on the same grounds as automatic stress detection). One structural repair rode along: the page layout moved from counted grid rows to a flex column, so drawers can open and close without the transcript ever landing in the wrong row.',
+  '',
+  '**Strata Sheets** (2026-09-21) — the console grew a working spreadsheet. The ask was LibreOffice-class; the honest answer is that a desktop office suite cannot live inside one self-contained page (its web forms run on servers this page does not have, and its browser build weighs hundreds of megabytes against this page\'s whole size budget) — so what shipped is the 20% of a spreadsheet that covers 80% of real use, hand-built in the console\'s own idiom. **📊 Sheets** (the button, `/sheet`) opens a drawer of named sheets: a grid of cells **A1–Z200 — the same coordinate grammar as the knowledge base\'s A1 filing system** — where a cell holds a number, text, or a formula starting with `=`: arithmetic, cell references, ranges inside functions, and SUM · AVERAGE · COUNT · MIN · MAX · ROUND · ABS. The engine is the classic three-stage kernel, written to be read: tokenizer → recursive-descent parser (real operator precedence) → memoized recursive evaluation, with a visiting set that turns circular references into an honest **#CYCLE** instead of a hang — every failure is a named value in the cell (#ERROR, #VALUE, #REF, #DIV/0), never a silent wrong number. A cell shows its computed value; focus it and you edit its SOURCE, with the formula bar mirroring — view and model kept separate, the same lesson the export bridge taught. Enter moves down, Tab moves right, Escape restores. Data travels by CSV, both directions: **⧉ CSV** copies computed values, **⬇ .csv** downloads a file Excel, Google Sheets and LibreOffice all open, and **📋 Import** accepts CSV or a tab-separated paste straight from either. The **pod assistant** joined through two page-defined tools, same contract as the KB\'s: readSheet (it consults your data before answering about it) and setSheetCells (it builds and fixes sheets on request, preferring live formulas over precomputed numbers, every write logged and reported). Sheets live under their own storage key — conversation, KB and sheets are three stores that cannot touch each other. Honest limits, stated: localStorage is a few megabytes, so this is a personal sheet, not a data warehouse (26 columns × 200 rows, capped); no .xlsx reading (that needs a heavyweight library — CSV is the interchange); no IF or text functions yet — deferred until real use asks, rather than speculatively grown.',
+  '',
+  '**Did not port** — Whisper tiers and the RAM budget (no model is resident here), `.docx`/`.pdf`/`.xlsx` upload extraction (text formats and images in the browser — though Drive files of those types read fine through the connector), and the **local-first guarantee itself**: the pod assistant, the web search and the Drive bridge are all cloud calls made with your permission. The desktop console remains the local-first build; this page is the same application layer demonstrating that the pipeline, not the model, is the product.',
 ].join('\n');
 
 /* ---------- spoken punctuation (strata_tools/dictation.py, ported) ---- */
@@ -1014,8 +1263,9 @@ function attachmentLabel(name, nChars) {
   return `📎 ${name} (${kb} KB) — attached; Remove detaches it`;
 }
 
-function busyLabel(hasAttachment, firstPodCall) {
+function busyLabel(hasAttachment, firstPodCall, hasImage) {
   if (firstPodCall) return 'first message — your browser asks permission for the pod assistant';
+  if (hasImage) return '🔎 looking at the image…';
   if (hasAttachment) return '🔎 reading the attachment…';
   return 'thinking (pod assistant)…';
 }
@@ -1055,11 +1305,15 @@ const kb = (() => {
       o = o || {};
       const raw = String(o.coord || '').toUpperCase();
       const load = Math.round(Number(o.load));
+      const g = String(o.glyph || '').trim();
       const c = {
         id: uid('c'), title: String(o.title || 'Untitled card').slice(0, 200),
         body: String(o.body || ''),
         coord: okCoord(raw) ? raw : 'D3',
         zone: ['GREEN', 'YELLOW', 'RED'].includes(o.zone) ? o.zone : 'GREEN',
+        glyph: GLYPHS.some((gl) => gl.glyph === g) ? g : '',
+        glyphHistory: [],   // audit trail: every glyph this card has worn
+        links: [],          // relationships to other cards, by id
         load: (load >= 1 && load <= 10) ? load : 5,
         byAssistant: !!o.byAssistant, reason: String(o.reason || '').slice(0, 200),
         at: Date.now(),
@@ -1098,6 +1352,74 @@ const kb = (() => {
         (gone.title || gone.term || String(gone.body || '').slice(0, 40)));
       save(); return true;
     },
+    /* Spec 2: change a card's glyph, recording the OLD glyph in the
+       card's history first — an audit trail, so no glyph is ever lost,
+       only superseded. Migration is lazy: legacy cards grow their
+       history array on first touch. */
+    applyGlyph(id, glyph, context, byAssistant) {
+      const c = data.cards.find((x) => x.id === id);
+      if (!c) return null;
+      const g = String(glyph || '').trim();
+      if (!GLYPHS.some((x) => x.glyph === g)) return null;
+      if (!Array.isArray(c.glyphHistory)) c.glyphHistory = [];
+      c.glyphHistory.push({ glyph: c.glyph || '', at: Date.now(),
+        by: byAssistant ? 'assistant' : 'user',
+        context: String(context || '').slice(0, 160) });
+      c.glyph = g;
+      logIt((byAssistant ? 'Assistant changed' : 'Changed') +
+            ' glyph on "' + c.title + '" to ' + g);
+      save();
+      return c;
+    },
+    /* Spec 2: link two cards. Directed edge, stored on the source. */
+    linkCards(id, targetId, type, byAssistant) {
+      const c = data.cards.find((x) => x.id === id);
+      const t = data.cards.find((x) => x.id === targetId);
+      if (!c || !t || c.id === t.id) return null;
+      const kinds = ['blocks', 'depends_on', 'references', 'child_of', 'related_to'];
+      const k = kinds.includes(type) ? type : 'related_to';
+      if (!Array.isArray(c.links)) c.links = [];
+      if (c.links.some((l) => l.target === t.id && l.type === k)) return c;  // idempotent
+      c.links.push({ target: t.id, type: k });
+      logIt((byAssistant ? 'Assistant linked' : 'Linked') +
+            ' "' + c.title + '" ' + k.replace('_', ' ') + ' "' + t.title + '"');
+      save();
+      return c;
+    },
+    /* The lifecycle pass, run at startup. Two rules, in order:
+       1. Glyph decay (spec 2): 🎯 Target older than 7 days softens to
+          🌀 Iterate — recorded in the card's history as a system change.
+       2. The v2 expiry rule: a card older than 30 days moves to the RED
+          zone — archived, exactly as the clear floor treats conversation.
+       🧊 Golden Source is exempt from BOTH, and nothing is deleted:
+       changing zone or glyph back revives the card. */
+    autoArchive(maxAgeDays = 30) {
+      const DECAY = { '🎯': { afterDays: 7, to: '🌀' } };
+      const now = Date.now();
+      let archived = 0;
+      let decayed = 0;
+      data.cards.forEach((c) => {
+        if (c.glyph === '🧊' || !c.at) return;
+        const rule = DECAY[c.glyph];
+        if (rule && c.at < now - rule.afterDays * 86400000) {
+          if (!Array.isArray(c.glyphHistory)) c.glyphHistory = [];
+          c.glyphHistory.push({ glyph: c.glyph, at: now, by: 'system',
+            context: 'decay after ' + rule.afterDays + ' days' });
+          c.glyph = rule.to;
+          decayed += 1;
+        }
+        if (c.zone !== 'RED' && c.at < now - maxAgeDays * 86400000) {
+          c.zone = 'RED';
+          archived += 1;
+        }
+      });
+      if (archived || decayed) {
+        logIt('Lifecycle pass: ' + decayed + ' glyph decay(s), ' +
+              archived + ' card(s) archived to RED');
+        save();
+      }
+      return { archived, decayed };
+    },
     counts() {
       return { documents: data.documents.length, cards: data.cards.length,
                notes: data.notes.length, journal: data.journal.length,
@@ -1124,7 +1446,7 @@ function kbSearch(query, limit = 8) {
     if (s > 0) hits.push(Object.assign({ kind, id, title, text, score: s }, extraFields || {}));
   };
   kb.data.documents.forEach((d) => push('document', d.id, d.title, d.body));
-  kb.data.cards.forEach((c) => push('card', c.id, c.title, c.body, { coord: c.coord, zone: c.zone }));
+  kb.data.cards.forEach((c) => push('card', c.id, c.title, c.body, { coord: c.coord, zone: c.zone, glyph: c.glyph || '' }));
   kb.data.notes.forEach((n) => push('note', n.id, n.title, n.body));
   kb.data.journal.forEach((j) => {
     let day = '';
@@ -1149,7 +1471,7 @@ function kbContext(query, maxChars = 4000) {
       : h.text.slice(0, 900);
     if (!body) continue;
     const head = h.kind === 'card'
-      ? "card '" + h.title + "' at " + h.coord + ' [' + h.zone + ']'
+      ? (h.glyph ? h.glyph + ' ' : '') + "card '" + h.title + "' at " + h.coord + ' [' + h.zone + ']'
       : h.kind + " '" + h.title + "'";
     let piece = "From the user's knowledge base — " + head + ':\n' + body;
     if (total + piece.length > maxChars) piece = piece.slice(0, maxChars - total);
@@ -1158,6 +1480,20 @@ function kbContext(query, maxChars = 4000) {
     if (names.length < 4) names.push(h.title);
   }
   return { text: parts.join('\n\n'), names: names };
+}
+
+/* Find one card by cell address or title fragment — shared by the
+ * assistant's card tools. Cell match wins; otherwise the first
+ * case-insensitive title match. */
+function kbFindCard(q) {
+  const s = String(q || '').trim();
+  if (!s) return null;
+  if (/^[A-Za-z]\d{1,3}$/.test(s)) {
+    const hit = kb.data.cards.find((c) => c.coord === s.toUpperCase());
+    if (hit) return hit;
+  }
+  const low = s.toLowerCase();
+  return kb.data.cards.find((c) => (c.title || '').toLowerCase().includes(low)) || null;
 }
 
 /* Tools the pod assistant may call. Each one executes HERE, on the KB
@@ -1177,17 +1513,49 @@ function kbAssistantTools(actions) {
           : h.text.slice(0, 600),
       })) },
     { name: 'createCard',
-      description: "Create a note card in the user's knowledge base. coord is a cell A1–Z999 (defaults to D3); zone is GREEN, YELLOW or RED; load is cognitive load 1–10. Always pass a one-sentence reason for the cell you chose.",
+      description: "Create a note card in the user's knowledge base. coord is a cell A1–Z999 (defaults to D3); zone is GREEN, YELLOW or RED; load is cognitive load 1–10; glyph is an optional codex glyph character (🔺 Execute, 🧊 Golden Source — never auto-archives, 🔸 Analyze, 🌀 Iterate, 🥥 Coconut, 💠 Core, ⚪ Anchor, 🌊 Wave, 🎯 Target). Always pass a one-sentence reason for the cell you chose.",
       inputSchema: { type: 'object',
         properties: { title: { type: 'string' }, body: { type: 'string' },
           coord: { type: 'string' }, zone: { type: 'string' },
-          load: { type: 'number' }, reason: { type: 'string' } },
+          load: { type: 'number' }, glyph: { type: 'string' },
+          reason: { type: 'string' } },
         required: ['title'] },
       execute: (a) => {
         const c = kb.addCard(Object.assign({}, a, { byAssistant: true }));
         actions.push('card "' + c.title + '" at ' + c.coord);
         kbRender();
         return { ok: true, id: c.id, coord: c.coord };
+      } },
+    { name: 'changeCardGlyph',
+      description: "Change the codex glyph on an existing card, recording the old glyph in the card's history (an audit trail — nothing is lost). Identify the card by its cell (e.g. H5) or a distinctive title fragment. Pass a one-sentence context saying why.",
+      inputSchema: { type: 'object',
+        properties: { card: { type: 'string', description: 'cell like H5, or title fragment' },
+          glyph: { type: 'string' }, context: { type: 'string' } },
+        required: ['card', 'glyph'] },
+      execute: (a) => {
+        const found = kbFindCard(a && a.card);
+        if (!found) throw new Error('No card matched — call searchKnowledgeBase first and use the exact cell or title.');
+        const c = kb.applyGlyph(found.id, a && a.glyph, a && a.context, true);
+        if (!c) throw new Error('That glyph is not in the legend.');
+        actions.push('glyph ' + c.glyph + ' on "' + c.title + '"');
+        kbRender();
+        return { ok: true, title: c.title, glyph: c.glyph, historyLength: c.glyphHistory.length };
+      } },
+    { name: 'linkCards',
+      description: "Link one card to another in the user's knowledge base. type is one of: blocks, depends_on, references, child_of, related_to. Identify each card by cell (e.g. H5) or a distinctive title fragment. Link only when the user asks for it or clearly wants two cards connected.",
+      inputSchema: { type: 'object',
+        properties: { from: { type: 'string' }, to: { type: 'string' },
+          type: { type: 'string' } },
+        required: ['from', 'to'] },
+      execute: (a) => {
+        const src = kbFindCard(a && a.from);
+        const dst = kbFindCard(a && a.to);
+        if (!src || !dst) throw new Error('Could not match ' + (!src ? 'the "from"' : 'the "to"') + ' card — use searchKnowledgeBase and pass the exact cell or title.');
+        const c = kb.linkCards(src.id, dst.id, a && a.type, true);
+        if (!c) throw new Error('The link could not be made (a card cannot link to itself).');
+        actions.push('"' + src.title + '" → "' + dst.title + '"');
+        kbRender();
+        return { ok: true, from: src.title, to: dst.title, linkCount: c.links.length };
       } },
     { name: 'saveNote',
       description: "Save a note in the user's knowledge base.",
@@ -1315,6 +1683,216 @@ let busyCtl = null;          // AbortController for the in-flight pod call
 
 const ZONE_MEANING = { GREEN: 'active', YELLOW: 'analytical', RED: 'archival' };
 
+/* ---------- Omega-1 behavioral overlays --------------------------------
+ * Five modes from the v2 handoff, adopted 2026-09-19. Specified as YAML;
+ * living here as plain objects (the handoff's own first-sprint advice).
+ * An overlay is honest about what it is: tone and pacing conditioning on
+ * the pod assistant — it changes HOW answers arrive, not what the
+ * console can do. crisis_triage says so explicitly: this is a
+ * productivity tool, not crisis care. */
+const OVERLAYS = {
+  off: { label: 'No overlay', blurb: 'zone conditioning only', instr: '' },
+  executive_focus: {
+    label: 'Executive Focus', blurb: 'brief, decisive, action first',
+    instr: 'Overlay executive_focus: be brief and decisive. Lead with the ' +
+      'action or the answer, then at most three short supporting points. ' +
+      'Prefer numbered steps to prose. No tangents.' },
+  safe_mode: {
+    label: 'Safe Mode', blurb: 'calm, low-pressure, one small step',
+    instr: 'Overlay safe_mode: calm, steady, low-pressure. Short sentences. ' +
+      'One idea per paragraph. No urgency language, no demands. Offer at ' +
+      'most one small next step, and make "not right now" an acceptable answer.' },
+  flow_state: {
+    label: 'Flow State', blurb: 'minimal interruption, protect momentum',
+    instr: 'Overlay flow_state: protect momentum. No preamble, no ' +
+      'meta-commentary. Answer inline and get out of the way. Defer anything ' +
+      'that would interrupt the current task unless it is critical.' },
+  reflection_mode: {
+    label: 'Reflection', blurb: 'spacious, pattern-surfacing',
+    instr: 'Overlay reflection_mode: slower and more spacious. Surface ' +
+      'patterns across the recent conversation, summarize what has been ' +
+      'learned, and where useful ask one gentle question back rather than ' +
+      'driving to action.' },
+  crisis_triage: {
+    label: 'Crisis Triage', blurb: 'minimum load, one thing at a time',
+    instr: 'Overlay crisis_triage: minimum cognitive load. One thing at a ' +
+      'time. Very short sentences. Name the single most important next step ' +
+      'and explicitly defer everything else to later. No options lists, no ' +
+      'new projects. Kind and steady. This console is a productivity tool, ' +
+      'not crisis care: if the user seems to be in real distress rather than ' +
+      'task overload, gently suggest pausing and reaching a trusted person ' +
+      'or professional support.' },
+};
+
+/* ---------- glyph-mode interaction matrix ------------------------------
+ * Spec 1 of the H5 handoff: glyphs carry intent, overlays carry context,
+ * and the two INTERACT. A 9×5 decision table — glyph × overlay → how the
+ * assistant should behave this turn: a step budget, a tone, an urgency,
+ * and one actionable instruction. A read-only lookup, exactly as the
+ * spec asks: no persistence, no side effects. The spec's fallback rule
+ * is honored (a missing cell falls back to the glyph's reflection_mode
+ * row), and its escalate_to_mode became `suggest` — the console NEVER
+ * switches your mode for you; it offers one quiet note instead. */
+const GLYPH_MODE_MATRIX = {
+  '🔺': {
+    executive_focus: { steps: 3, tone: 'directive', urgency: 'high', note: 'Do it now: lead with the first concrete action.' },
+    safe_mode:       { steps: 5, tone: 'grounding', urgency: 'medium', note: 'Act, but gently: small steps, no pressure.', suggest: 'flow_state' },
+    flow_state:      { steps: 2, tone: 'directive', urgency: 'high', note: 'Momentum: shortest path, two steps at most.' },
+    reflection_mode: { steps: 3, tone: 'analytical', urgency: 'low', note: 'Before executing, restate the goal in one line, then act.' },
+    crisis_triage:   { steps: 1, tone: 'grounding', urgency: 'high', note: 'One action only. Name it, do it, stop.' },
+  },
+  '🔸': {
+    executive_focus: { steps: 3, tone: 'analytical', urgency: 'medium', note: 'Structure fast: three findings, one recommendation.' },
+    safe_mode:       { steps: 3, tone: 'grounding', urgency: 'low', note: 'Analyze softly: what is true, stated without judgment.' },
+    flow_state:      { steps: 3, tone: 'analytical', urgency: 'medium', note: 'Quick structure, then back to the flow.' },
+    reflection_mode: { steps: 5, tone: 'analytical', urgency: 'low', note: 'Full structured review — this is 🔸\'s home mode.' },
+    crisis_triage:   { steps: 1, tone: 'grounding', urgency: 'low', note: 'Defer deep analysis; name the one thing that matters now.' },
+  },
+  '🌀': {
+    executive_focus: { steps: 3, tone: 'directive', urgency: 'medium', note: 'Next iteration only: the single most valuable improvement.' },
+    safe_mode:       { steps: 1, tone: 'warm', urgency: 'low', note: 'One gentle next step, clearly optional.' },
+    flow_state:      { steps: 3, tone: 'exploratory', urgency: 'high', note: 'Build on momentum: propose the next iteration and start it.' },
+    reflection_mode: { steps: 3, tone: 'exploratory', urgency: 'low', note: 'Look back before iterating: what did the last pass teach?' },
+    crisis_triage:   { steps: 1, tone: 'grounding', urgency: 'low', note: 'No new iterations in crisis — hold what exists.' },
+  },
+  '💠': {
+    executive_focus: { steps: 3, tone: 'directive', urgency: 'medium', note: 'Anchor to the essential; strip everything else away.' },
+    safe_mode:       { steps: 1, tone: 'grounding', urgency: 'low', note: 'Return to the core idea, gently.' },
+    flow_state:      { steps: 2, tone: 'directive', urgency: 'medium', note: 'Keep the core in view; no digressions.' },
+    reflection_mode: { steps: 3, tone: 'analytical', urgency: 'low', note: 'Examine the core concept itself.' },
+    crisis_triage:   { steps: 1, tone: 'grounding', urgency: 'medium', note: 'State the one core thing; everything else waits.' },
+  },
+  '🧊': {
+    /* Golden Source preserves in EVERY mode — the spec's own invariant. */
+    executive_focus: { steps: 3, tone: 'neutral', urgency: 'medium', note: 'Canonical material: cite and preserve it exactly; never rewrite or reset it.' },
+    safe_mode:       { steps: 1, tone: 'grounding', urgency: 'low', note: 'Canonical material: preserve it exactly; it is safe and settled.' },
+    flow_state:      { steps: 2, tone: 'neutral', urgency: 'low', note: 'Canonical material: reference without altering; keep moving.' },
+    reflection_mode: { steps: 3, tone: 'analytical', urgency: 'low', note: 'Canonical material: study it as-is; preservation over revision.' },
+    crisis_triage:   { steps: 1, tone: 'grounding', urgency: 'low', note: 'Canonical material: preserved and untouched; nothing to do with it now.' },
+  },
+  '⚪': {
+    executive_focus: { steps: 3, tone: 'neutral', urgency: 'medium', note: 'A fixed reference — cite it, never alter it.' },
+    safe_mode:       { steps: 1, tone: 'grounding', urgency: 'low', note: 'A fixed point to hold onto; it does not move.' },
+    flow_state:      { steps: 2, tone: 'neutral', urgency: 'low', note: 'Reference in passing; do not stop to rework it.' },
+    reflection_mode: { steps: 3, tone: 'analytical', urgency: 'low', note: 'Consider the anchor\'s role, without changing it.' },
+    crisis_triage:   { steps: 1, tone: 'grounding', urgency: 'low', note: 'The anchor holds. Point to it and move on.' },
+  },
+  '🌊': {
+    executive_focus: { steps: 3, tone: 'analytical', urgency: 'medium', note: 'Experimental: state the hypothesis and the cheapest test.' },
+    safe_mode:       { steps: 1, tone: 'grounding', urgency: 'low', note: 'Uncertainty is allowed; name it without resolving it.' },
+    flow_state:      { steps: 3, tone: 'exploratory', urgency: 'high', note: 'Ride it: try the experiment now, note what is unknown.' },
+    reflection_mode: { steps: 5, tone: 'exploratory', urgency: 'low', note: 'Explore the uncertainty fully; map what is unknown.' },
+    crisis_triage:   { steps: 1, tone: 'grounding', urgency: 'low', note: 'Park the experiment; uncertainty waits until calm.' },
+  },
+  '🎯': {
+    executive_focus: { steps: 3, tone: 'directive', urgency: 'high', note: 'Progress first: distance to goal, then the next step.' },
+    safe_mode:       { steps: 1, tone: 'warm', urgency: 'low', note: 'Note progress kindly; no pressure on the gap.' },
+    flow_state:      { steps: 2, tone: 'directive', urgency: 'medium', note: 'Track without breaking stride.' },
+    reflection_mode: { steps: 3, tone: 'analytical', urgency: 'low', note: 'Is this still the right target? Review before pursuing.' },
+    crisis_triage:   { steps: 1, tone: 'grounding', urgency: 'medium', note: 'Only the nearest milestone matters right now.' },
+  },
+  '🥥': {
+    executive_focus: { steps: 1, tone: 'warm', urgency: 'low', note: 'A light touch of warmth, then straight back to business.' },
+    safe_mode:       { steps: 1, tone: 'warm', urgency: 'low', note: 'Lean warm: validate first; gentle humor is welcome.' },
+    flow_state:      { steps: 1, tone: 'warm', urgency: 'low', note: 'A quick smile that keeps the flow.' },
+    reflection_mode: { steps: 1, tone: 'warm', urgency: 'low', note: 'Warmth in reflection: celebrate what went well.' },
+    crisis_triage:   { steps: 1, tone: 'warm', urgency: 'low', note: 'Gentle warmth only — steady and kind, never at the situation\'s expense.' },
+  },
+};
+
+/* The spec's lookup contract: cell, else the glyph's reflection_mode
+ * row, else null (legacy tokens have no matrix rows and keep their
+ * plain instructions). */
+function glyphModeBehavior(glyph, mode) {
+  const row = GLYPH_MODE_MATRIX[glyph];
+  if (!row) return null;
+  return row[mode] || row.reflection_mode || null;
+}
+
+let overlayMode = store.getState('overlay', 'off');
+if (!(overlayMode in OVERLAYS)) overlayMode = 'off';
+let cogLoad = parseInt(store.getState('cog_load', '5'), 10);
+if (!(cogLoad >= 1 && cogLoad <= 10)) cogLoad = 5;
+
+/* The logical turn clock (H6, the honest kernel): a monotonic counter,
+ * persisted, incremented once per dispatched turn — a Lamport clock,
+ * trivially exact with a single writer. It gives every answer a total
+ * order that survives reloads, which is what "time-folded ordering"
+ * actually needs at one site. */
+let turnClock = parseInt(store.getState('turn_clock', '0'), 10) || 0;
+
+/* ---------- crisis session lifecycle (Spec 4, manual-only) -------------
+ * Crisis Triage is activated by the USER — the dropdown or /overlay —
+ * and never by the console: no keyword scoring, no automatic switching.
+ * What formalization adds is the session around the mode: a start entry
+ * in the journal, the load dial eased to 3 (a starting point, not a
+ * lock — the dial stays yours), a gentle check-in every 30 minutes that
+ * requires nothing, an end entry with the elapsed time, and support
+ * resources named plainly at the start, because a productivity tool
+ * should know what it is not. */
+let crisisSession = null;   // { startedAt, timer } while crisis_triage is on
+
+function crisisEnter(resumed) {
+  crisisSession = { startedAt: Date.now(), timer: null };
+  if (cogLoad > 3) {
+    cogLoad = 3;
+    store.setState('cog_load', '3');
+    if ($('cogload')) { $('cogload').value = 3; $('cogload-out').value = '3/10'; }
+  }
+  if (resumed) {
+    /* The overlay survived a reload: keep the session going quietly —
+       no duplicate journal entry, no repeated speech. */
+    note('🛟 Crisis Triage is still on from before the reload — ' +
+         '/overlay safe_mode whenever you are ready to shift down.');
+  } else {
+    kb.addJournal('[CRISIS] 🔺 Session started ' + new Date().toISOString() +
+      ' — crisis_triage on, one thing at a time.', true);
+    note('🛟 Crisis Triage on. One thing at a time — everything else can wait. ' +
+         'The load dial is set to 3 (raise it any time; it stays yours). A ' +
+         'gentle check-in comes in 30 minutes. And if this is more than task ' +
+         'overload, real people can help: in the US, call or text 988 ' +
+         '(Suicide & Crisis Lifeline), or text HOME to 741741.');
+  }
+  const checkIn = () => {
+    if (!crisisSession) return;
+    const mins = Math.round((Date.now() - crisisSession.startedAt) / 60000);
+    note('🛟 ' + mins + ' minutes in Crisis Triage. Still with it? Keep going ' +
+         'as long as you need — or /overlay safe_mode when you are ready to ' +
+         'shift down. Nothing is required.');
+    crisisSession.timer = setTimeout(checkIn, 30 * 60000);
+  };
+  crisisSession.timer = setTimeout(checkIn, 30 * 60000);
+}
+
+function crisisExit() {
+  if (!crisisSession) return;
+  const mins = Math.round((Date.now() - crisisSession.startedAt) / 60000);
+  if (crisisSession.timer) clearTimeout(crisisSession.timer);
+  crisisSession = null;
+  kb.addJournal('[CRISIS] 🔺 Session ended ' + new Date().toISOString() +
+    ' — ' + mins + ' minute(s) elapsed. Exited by the user.', true);
+  note('🛟 Crisis Triage off after ' + mins + ' minute(s) — logged to the journal.');
+}
+
+/* The ONE way the overlay changes — dropdown and /overlay both land
+ * here, so the crisis lifecycle can never be bypassed or double-run. */
+function setOverlay(next) {
+  const key = (next in OVERLAYS) ? next : 'off';
+  if (key === overlayMode) return;
+  const prev = overlayMode;
+  overlayMode = key;
+  store.setState('overlay', overlayMode);
+  if ($('overlay')) $('overlay').value = overlayMode;
+  if (prev === 'crisis_triage') crisisExit();
+  if (overlayMode === 'crisis_triage') {
+    crisisEnter();
+  } else {
+    note(overlayMode === 'off'
+      ? 'Overlay off — zone conditioning alone.'
+      : OVERLAYS[overlayMode].label + ' overlay on — ' + OVERLAYS[overlayMode].blurb + '.');
+  }
+}
+
 function changeZone(next) {
   const up = String(next || '').trim().toUpperCase();
   if (up in TONES) {
@@ -1350,6 +1928,25 @@ const podReady = (window.claude && typeof window.claude.use === 'function')
  * when active, thinks-first when analytical or archival. */
 const ZONE_TIER = { GREEN: 'quick', YELLOW: 'default', RED: 'default' };
 
+/* Image examination — the one sense the desktop build never had.
+ * The runtime says per view whether images may ride along with a call
+ * (sample.limits().images: how many, how large, which types); the page
+ * checks once, quietly — no usage spent, no permission asked — and only
+ * then widens the Upload picker. An image goes to the pod assistant's
+ * eyes, not the retrieval kernel: pixels cannot be chunk-ranked, so it
+ * is a second lane beside the text one, not a new pipeline stage. */
+let imageCaps = null;        // limits().images when this view can send images
+const capsReady = podReady.then((fn) => {
+  if (!fn || typeof fn.limits !== 'function') return null;
+  return fn.limits().then((c) => {
+    imageCaps = (c && c.images) || null;
+    if (imageCaps && imageCaps.mediaTypes && imageCaps.mediaTypes.length) {
+      $('file').accept = TEXT_EXTS.join(',') + ',' + imageCaps.mediaTypes.join(',');
+    }
+    return imageCaps;
+  }).catch(() => null);
+});
+
 /* ---------- the Google Drive bridge ------------------------------------
  * The desktop console's ☁ source returns: the viewer's own claude.ai
  * Google Drive connector, reached through the page's mcp capability.
@@ -1364,6 +1961,16 @@ const mcpReady = (window.claude && typeof window.claude.use === 'function')
   : Promise.resolve(null).then(() => { mcp = null; return null; });
 
 const DRIVE_SERVER = 'Google Drive';
+
+/* The downloads capability — the only way a page in the artifact viewer
+ * can hand the viewer a file (a plain anchor download is silently
+ * ignored there). Same posture as the pod and the bridge: available or
+ * not, honest when not. */
+let dls;                     // undefined = checking, null = unavailable
+const dlsReady = (window.claude && typeof window.claude.use === 'function')
+  ? window.claude.use('downloads').then((ns) => { dls = ns || null; return dls; })
+      .catch(() => { dls = null; return null; })
+  : Promise.resolve(null).then(() => { dls = null; return null; });
 
 function driveQuery(userText) {
   const ts = terms(userText).slice(0, 6);
@@ -1476,24 +2083,59 @@ const KB_TOOL_RULES =
   'touch their own material, and answer from what it returns, citing the ' +
   'item titles. When the user asks you to remember something, capture or ' +
   'summarize into a card, save a note, journal the session, or define a ' +
-  'term, call createCard, saveNote, addJournalEntry or addGlossaryTerm, ' +
-  'then confirm in one short sentence what you did and where it went. ' +
+  'term, call createCard, saveNote, addJournalEntry or addGlossaryTerm; ' +
+  'to re-tag a card call changeCardGlyph (the old glyph is kept in its ' +
+  'history), and to connect two cards call linkCards. Confirm in one ' +
+  'short sentence what you did and where it went. ' +
   'Write to the knowledge base only when the user asks for it or clearly ' +
   'wants something kept.';
 
-function podRules(tone, glyphMeanings, context, grounded) {
+/* The sheets tools ride along the same way. */
+const SHEET_TOOL_RULES =
+  "You also have tools for the user's STRATA SHEETS — small spreadsheets " +
+  'kept in this console (cells A1–Z200; formulas start with = and support ' +
+  'arithmetic, cell refs, ranges inside functions, and SUM, AVERAGE, COUNT, ' +
+  'MIN, MAX, ROUND, ABS). Call readSheet before answering any question ' +
+  "about the user's sheet data, and answer from its computed CSV. When the " +
+  'user asks you to build, fill, total or fix a sheet, call setSheetCells — ' +
+  'prefer formulas over precomputed numbers, so the sheet stays live when ' +
+  'the user edits it. Confirm briefly what you wrote and where.';
+
+/* Snapshot-at-dispatch (H6): the last three parameters are the turn's
+ * FROZEN configuration, captured the instant Send was pressed. This
+ * function never reads the live zone/overlay/load globals — a mode
+ * flipped while an answer streams cannot reach back into the prompt
+ * that already shaped it. Immutable-per-turn context, which is the
+ * part of the chronofold idea this page can honestly use. */
+function podRules(tone, glyphMeanings, context, grounded, zSnap, ovSnap, loadSnap) {
   const voice = tone.voice || 'clear and direct';
   let tokenLine = '';
   if (glyphMeanings.length) {
-    tokenLine = '\nThe user included these operator tokens; factor in their intent: ' +
-      glyphMeanings.map((m) => `${m.glyph} (${m.fn})`).join(', ') + '.';
+    /* Spec 1: with an overlay active, the interaction matrix speaks for
+       the glyph; without one (or for legacy tokens) the glyph's own
+       instruction stands. */
+    tokenLine = '\nThe user included these codex glyphs; follow each one\'s instruction: ' +
+      glyphMeanings.map((m) => {
+        const b = (ovSnap !== 'off') ? glyphModeBehavior(m.glyph, ovSnap) : null;
+        if (b) {
+          return m.glyph + ' ' + m.name + ' in ' + ovSnap + ' — ' + b.note +
+            ' (at most ' + b.steps + ' step' + (b.steps === 1 ? '' : 's') +
+            ', ' + b.tone + ' tone, ' + b.urgency + ' urgency)';
+        }
+        return m.glyph + ' ' + m.name + (m.instr ? ' — ' + m.instr : ' (' + m.fn + ')');
+      }).join(' | ');
   }
   return 'You are Strata, the assistant of Strata Console — this is the browser ' +
     "build, where you are the pod assistant sitting in the local model's seat. " +
     'You help with conversation, planning, writing, and code.\n' +
     (grounded ? TOOLS_WHEN_GROUNDED : TOOLS_WHEN_NOT) + '\n' +
     KB_TOOL_RULES + '\n' +
-    `Operating mode: ${zone} — respond in a manner that is ${voice}.` + tokenLine + '\n' +
+    SHEET_TOOL_RULES + '\n' +
+    `Operating mode: ${zSnap} — respond in a manner that is ${voice}.` +
+    (ovSnap !== 'off' && OVERLAYS[ovSnap] ? '\n' + OVERLAYS[ovSnap].instr : '') +
+    `\nTarget cognitive load: ${loadSnap}/10 — 1 means minimal (very short, one idea ` +
+    'at a time), 10 means full depth. Calibrate chunk size, sentence length and ' +
+    'detail to it.' + tokenLine + '\n' +
     `Recent context — ${context}\n` +
     'Any earlier user/assistant turns included before the newest message are ' +
     'the real recent conversation: recall and use them freely when the user ' +
@@ -1525,12 +2167,14 @@ function statusText() {
   const lines = [
     '### Status', '',
     `- **Mode**: ${zone} — ${ZONE_MEANING[zone]}`,
+    `- **Overlay**: ${overlayMode === 'off' ? 'off' : OVERLAYS[overlayMode].label + ' — ' + OVERLAYS[overlayMode].blurb} · target load ${cogLoad}/10`,
+    `- **Turn clock**: #${turnClock} — turns dispatched all-time; each answer's header carries its number`,
     `- **Assistant**: ${pod === undefined ? 'pod check running' : pod
       ? 'pod assistant online (tier by mode: GREEN→quick, YELLOW/RED→default)'
       : 'template mode — the deterministic engine answers'}`,
     `- **Context entries**: ${store.threadCount()} in play, ${store.archivedCount()} stored all-time`,
     `- **Conversation recall**: ${store.recallTurns().length} recent turn(s) go with the next message`,
-    `- **Sources**: 🌐 web search ${$('src-web').checked ? 'ON' : 'off'} · ☁ Google Drive ${$('src-drive').checked ? 'ON' : 'off'} · 🗂 knowledge base ${$('src-kb').checked ? 'ON' : 'off'} (${kb.total()} item${kb.total() === 1 ? '' : 's'}) · 📎 ${attachment ? attachment.name : 'no attachment'}`,
+    `- **Sources**: 🌐 web search ${$('src-web').checked ? 'ON' : 'off'} · ☁ Google Drive ${$('src-drive').checked ? 'ON' : 'off'} · 🗂 knowledge base ${$('src-kb').checked ? 'ON' : 'off'} (${kb.total()} item${kb.total() === 1 ? '' : 's'}) · ${attachment ? (attachment.image ? '🖼 ' : '📎 ') + attachment.name : '📎 no attachment'}`,
   ];
   if (podLastError) lines.push(`- **Last pod error**: \`${podLastError}\``);
   return lines.join('\n');
@@ -1548,6 +2192,7 @@ function kbStatusText() {
     `- **Source**: ${$('src-kb').checked
       ? '🗂 ON — searched before every answer, no cloud call'
       : '🗂 off — tick 🗂 Knowledge to ground answers in it'}`,
+    '- **Export**: ⧉ Copy on any item, ⧉ Export tab for the whole tab (or `/kb export`) — full bodies, markdown, clipboard.',
   ];
   const recent = kb.data.log.slice(0, 5);
   if (recent.length) {
@@ -1578,7 +2223,58 @@ function runCommand(text) {
       const arg = c.argument.toLowerCase();
       if (arg === 'open')  { kbToggle(true);  return { handled: true, message: '🗂 Knowledge base open.' }; }
       if (arg === 'close') { kbToggle(false); return { handled: true, message: '🗂 Knowledge base closed.' }; }
+      if (arg === 'export') { kbToggle(true); kbExportTab(); return { handled: true }; }
       return { handled: true, markdown: true, message: kbStatusText() };
+    }
+    case 'find': {
+      if (!c.argument) {
+        return { handled: true, bad: true,
+                 message: 'Usage: /find H5 (a cell) or /find <keywords>.' };
+      }
+      kbDoSearch(c.argument);
+      return { handled: true, message: '🔎 Results are in the Knowledge Base drawer.' };
+    }
+    case 'export': {
+      exportSession();
+      return { handled: true };
+    }
+    case 'avatar': {
+      const arg = c.argument.toLowerCase();
+      if (arg === 'close') { avToggle(false); return { handled: true, message: 'Avatar view closed.' }; }
+      avToggle(true);
+      return { handled: true, message: 'Avatar view open — a live view of mode, load, activity and recall.' };
+    }
+    case 'keyboard': {
+      const arg = c.argument.toLowerCase();
+      if (arg === 'close') { kbdToggle(false); return { handled: true, message: '⌨ Glyph keyboard closed.' }; }
+      kbdToggle(true);
+      return { handled: true, message: '⌨ Glyph keyboard open — tap glyphs into the message box. ' +
+               'Alt+1–0 type the core ten from anywhere; Alt+K toggles the drawer.' };
+    }
+    case 'sheet': {
+      const arg = c.argument.toLowerCase();
+      if (arg === 'close') { shToggle(false); return { handled: true, message: '📊 Sheets closed.' }; }
+      if (arg === 'export') { shExportCSV(); return { handled: true }; }
+      shToggle(true);
+      return { handled: true, message: '📊 Sheets open — click a cell and type; a formula starts ' +
+               'with = (try =SUM(A1:A5)). ⧉ CSV and ⬇ .csv carry the data out; 📋 Import brings it in.' };
+    }
+    case 'overlay': {
+      const arg = c.argument.toLowerCase().replace(/[\s-]+/g, '_');
+      if (!arg) {
+        const lines = ['### Omega-1 behavioral overlays', ''];
+        for (const [key, o] of Object.entries(OVERLAYS)) {
+          lines.push(`- \`${key}\`${key === overlayMode ? ' — **active**' : ''} — ${o.blurb}`);
+        }
+        lines.push('', 'Switch with `/overlay <name>`. `/overlay off` returns to zone conditioning alone. ' +
+          'An overlay shapes tone and pacing; the load dial (1–10) sets how much arrives at once.');
+        return { handled: true, markdown: true, message: lines.join('\n') };
+      }
+      if (arg in OVERLAYS) {
+        setOverlay(arg);   // notes for itself, crisis lifecycle included
+        return { handled: true, status: getStatus() };
+      }
+      return { handled: true, bad: true, message: 'Unknown overlay: ' + c.argument + '. /overlay lists them.' };
     }
     case 'clear': {
       const cleared = store.raiseFloor();
@@ -1804,6 +2500,133 @@ function readAlong(turnEl, fallbackText) {
   speakFrom(0);
 }
 
+/* ---------- export bridge ----------------------------------------------
+ * The knowledge base's missing half: getting the FULL contents OUT of
+ * this browser, so a handoff filed here can cross to whoever codes it.
+ *
+ * Textbook separation of concerns: the drawer's list view truncates
+ * bodies for display — that is a VIEW decision — while export always
+ * serializes from the data model, the single source of truth. So what
+ * leaves the console is complete regardless of what the screen shows.
+ *
+ * Serialization: each item becomes a self-describing markdown record —
+ * a heading, one metadata line (timestamps in ISO 8601), and the full
+ * body — so a pasted handoff carries its own context. The serializers
+ * are pure functions of the item; the one side effect, writing the
+ * clipboard, is isolated in copyText() with a graceful-degradation
+ * chain: the async Clipboard API where the browser grants it (this
+ * page's hosting frame delegates clipboard-write), the legacy
+ * textarea + execCommand path where it does not, and an honest failure
+ * report when neither works. */
+
+function kbIso(at) {
+  try { return new Date(at).toISOString(); } catch (e) { return ''; }
+}
+
+/* Pure: item in, markdown record out. No DOM, no truncation. */
+function kbSerialize(kind, x) {
+  const meta = [];
+  if (kind === 'card') {
+    if (x.glyph) meta.push('glyph: ' + x.glyph);
+    meta.push('cell: ' + (x.coord || '?'), 'zone: ' + (x.zone || '?'),
+              'load: ' + (x.load || '?') + '/10');
+  }
+  if (x.at) meta.push('created: ' + kbIso(x.at));
+  if (x.byAssistant) meta.push('author: assistant' + (x.reason ? ' (' + x.reason + ')' : ''));
+  const title = x.title || x.term || (kind === 'journal' ? 'Journal entry' : 'Untitled');
+  const body = (kind === 'term') ? (x.definition || '') : (x.body || '');
+  /* A card's audit trail and relationships ride with the record —
+     the export is the complete card, not just its current face. */
+  let appendix = '';
+  if (kind === 'card' && Array.isArray(x.glyphHistory) && x.glyphHistory.length) {
+    appendix += '\nGlyph history:\n' + x.glyphHistory.map((h) =>
+      '- ' + (h.glyph || '(none)') + ' until ' + kbIso(h.at) + ' (' + (h.by || '?') +
+      (h.context ? ': ' + h.context : '') + ')').join('\n') + '\n';
+  }
+  if (kind === 'card' && Array.isArray(x.links) && x.links.length) {
+    appendix += '\nLinks:\n' + x.links.map((l) => {
+      const t = kb.data.cards.find((cc) => cc.id === l.target);
+      return '- ' + l.type.replace('_', ' ') + ' → ' + (t ? t.title + ' (' + t.coord + ')' : 'a deleted card');
+    }).join('\n') + '\n';
+  }
+  return '## [' + kind.toUpperCase() + '] ' + title + '\n' +
+         (meta.length ? meta.join(' · ') + '\n' : '') + '\n' +
+         body + '\n' + appendix;
+}
+
+/* The one side effect. Resolves true only when the text really landed
+ * on the clipboard — callers report the outcome, never assume it. */
+async function copyText(text) {
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch (e) { /* fall through to the legacy path */ }
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', '');
+    ta.style.position = 'fixed';
+    ta.style.left = '-9999px';
+    document.body.appendChild(ta);
+    ta.select();
+    const ok = document.execCommand('copy');
+    ta.remove();
+    return !!ok;
+  } catch (e) { return false; }
+}
+
+async function kbCopyItem(kind, x) {
+  const record = kbSerialize(kind, x);
+  const ok = await copyText(record);
+  note(ok
+    ? '⧉ Copied in full — ' + record.length.toLocaleString() + ' characters ' +
+      'to the clipboard as markdown. The on-screen preview clips at 700; ' +
+      'the copy never does.'
+    : '⧉ The browser refused clipboard access — the copy did not happen.', !ok);
+}
+
+/* Export the CURRENT tab as one package, honoring the card filters —
+ * so "all GREEN 🔺 cards" is exactly one filter plus one click. */
+function kbExportTab() {
+  const items = [];
+  if (kbTab === 'library') {
+    kb.data.documents.forEach((d) => items.push(kbSerialize('document', d)));
+  } else if (kbTab === 'cards') {
+    let cards = kb.data.cards.slice();
+    if (kbGlyphFilter) cards = cards.filter((c) => c.glyph === kbGlyphFilter);
+    if (kbZoneFilter) cards = cards.filter((c) => c.zone === kbZoneFilter);
+    cards.sort((a, b) => (a.load || 5) - (b.load || 5));
+    cards.forEach((c) => items.push(kbSerialize('card', c)));
+  } else if (kbTab === 'notes') {
+    kb.data.notes.forEach((n) => items.push(kbSerialize('note', n)));
+  } else if (kbTab === 'journal') {
+    kb.data.journal.forEach((j) => items.push(kbSerialize('journal', j)));
+  } else {
+    kb.data.glossary.forEach((g) => items.push(kbSerialize('term', g)));
+  }
+  if (!items.length) {
+    note('⧉ Nothing to export in this tab' +
+         ((kbGlyphFilter || kbZoneFilter) ? ' under the current filter' : '') + '.', true);
+    return;
+  }
+  const filterNote = (kbTab === 'cards' && (kbGlyphFilter || kbZoneFilter))
+    ? ' · filter: ' + [kbGlyphFilter, kbZoneFilter].filter(Boolean).join(' ')
+    : '';
+  const pkg = '# Strata Console — knowledge base export\n' +
+    'exported: ' + new Date().toISOString() + ' · tab: ' + kbTab + filterNote +
+    ' · items: ' + items.length + '\n\n' +
+    items.join('\n---\n\n');
+  copyText(pkg).then((ok) => {
+    note(ok
+      ? '⧉ Exported ' + items.length + ' item(s) — ' + pkg.length.toLocaleString() +
+        ' characters of markdown on the clipboard, full bodies included. ' +
+        'Paste it wherever the handoff goes.'
+      : '⧉ The browser refused clipboard access — the export did not happen.', !ok);
+  });
+}
+
 /* ---------- knowledge base UI ------------------------------------------
  * A drawer with the Study Workstation's five tabs. Purely additive: it
  * renders into its own section and touches nothing the console already
@@ -1819,6 +2642,9 @@ const KB_TABS = [
 ];
 let kbTab = 'library';
 let kbOpenState = false;
+let kbGlyphFilter = '';   // '' = all glyphs
+let kbZoneFilter = '';    // '' = all zones
+let kbQuery = '';         // '' = no search — tabs show; set = results view
 
 function kbToggle(open) {
   kbOpenState = (open === undefined) ? !kbOpenState : !!open;
@@ -1849,12 +2675,18 @@ function kbWhen(at) {
   try { return new Date(at).toLocaleString(); } catch (e) { return ''; }
 }
 
-function kbItem(title, metaHtml, body, onDelete) {
+function kbItem(title, metaHtml, body, onDelete, onCopy) {
   const el = kbEl('div', 'kb-item');
   el.appendChild(kbEl('h4', '', esc(title)));
   if (metaHtml) el.appendChild(kbEl('div', 'kb-meta', metaHtml));
+  /* Display truncates; export never does — see the export bridge. */
   if (body) el.appendChild(kbEl('div', 'kb-body', esc(String(body).slice(0, 700))));
   const row = kbEl('div', 'kb-row');
+  if (onCopy) {
+    const c = kbBtn('⧉ Copy', onCopy);
+    c.title = 'Copy this item — the FULL body, not the preview — to the clipboard as markdown.';
+    row.appendChild(c);
+  }
   row.appendChild(kbBtn('Delete', onDelete));
   el.appendChild(row);
   return el;
@@ -1882,17 +2714,146 @@ function kbRender() {
     b.setAttribute('role', 'tab');
     b.setAttribute('aria-selected', kbTab === id ? 'true' : 'false');
     b.textContent = label + (countOf[id] ? ' (' + countOf[id] + ')' : '');
-    b.addEventListener('click', () => { kbTab = id; kbRender(); });
+    b.addEventListener('click', () => { kbTab = id; kbQuery = ''; kbRender(); });
     tabs.appendChild(b);
   });
+  const ex = kbEl('button', 'kb-tab');
+  ex.type = 'button';
+  ex.textContent = '⧉ Export tab';
+  ex.title = 'Copy every item in this tab — full bodies, honoring the current filters — to the clipboard as one markdown package.';
+  ex.addEventListener('click', kbExportTab);
+  tabs.appendChild(ex);
   const body = $('kb-body');
   body.innerHTML = '';
-  if (kbTab === 'library') kbRenderLibrary(body);
+  if (kbQuery) kbRenderResults(body);
+  else if (kbTab === 'library') kbRenderLibrary(body);
   else if (kbTab === 'cards') kbRenderCards(body);
   else if (kbTab === 'notes') kbRenderNotes(body);
   else if (kbTab === 'journal') kbRenderJournal(body);
   else kbRenderGlossary(body);
   kbBadge();
+}
+
+/* ---------- cell / keyword search --------------------------------------
+ * One box, two behaviors, decided by the SHAPE of the query — a
+ * classroom dispatch-on-input-form pattern:
+ *   - a cell address (letter + 1–3 digits, e.g. H5) → direct lookup of
+ *     the cards AT that cell, narrowed by the zone chips when one is
+ *     picked — exactly "zone says where I look, cell says which";
+ *   - anything else → the same ranked keyword search the assistant
+ *     grounds in, across all five stores.
+ * Results render in the drawer with the full Copy/Delete affordances;
+ * choosing any tab clears the search. */
+
+const KB_KIND_LIST = { document: 'documents', card: 'cards', note: 'notes',
+                       journal: 'journal', term: 'glossary' };
+
+function kbResolve(kind, id) {
+  const list = kb.data[KB_KIND_LIST[kind]];
+  return Array.isArray(list) ? list.find((x) => x.id === id) : null;
+}
+
+function kbResultItem(body, kind, x) {
+  const title = x.title || x.term || (kind === 'journal' ? kbWhen(x.at) : 'Untitled');
+  let meta = '<span>' + esc(kind) + '</span>';
+  if (kind === 'card') {
+    meta += (x.glyph ? '<span>' + esc(x.glyph) + '</span>' : '') +
+      '<span class="kb-coord">' + esc(x.coord) + '</span>' +
+      '<span class="kb-zone ' + esc(x.zone) + '">' + esc(x.zone) + '</span>' +
+      '<span>load ' + x.load + '/10</span>';
+  } else if (x.at) {
+    meta += '<span>' + esc(kbWhen(x.at)) + '</span>';
+  }
+  const text = (kind === 'term') ? x.definition : x.body;
+  body.appendChild(kbItem(title, meta, text,
+    () => { kb.remove(KB_KIND_LIST[kind], x.id); note('🗂 Deleted: ' + title); kbRender(); },
+    () => kbCopyItem(kind, x)));
+}
+
+function kbRenderResults(body) {
+  const q = kbQuery.trim();
+  const cellLike = /^[A-Za-z]\d{1,3}$/.test(q);
+  const bar = kbEl('div', 'kb-row');
+  const clear = kbBtn('✕ Clear search', () => { kbQuery = ''; $('kb-q').value = ''; kbRender(); });
+  bar.appendChild(clear);
+  if (cellLike) {
+    /* Zone chips: "the zone determines where I'm looking". */
+    ['GREEN', 'YELLOW', 'RED'].forEach((z) => {
+      const b = kbBtn(z, () => { kbZoneFilter = (kbZoneFilter === z) ? '' : z; kbRender(); });
+      b.setAttribute('aria-pressed', kbZoneFilter === z ? 'true' : 'false');
+      if (kbZoneFilter === z) { b.style.background = 'var(--fill)'; b.style.fontWeight = '600'; }
+      bar.appendChild(b);
+    });
+  }
+  body.appendChild(bar);
+
+  if (cellLike) {
+    const coord = q.toUpperCase();
+    let cards = kb.data.cards.filter((c) => c.coord === coord);
+    if (kbZoneFilter) cards = cards.filter((c) => c.zone === kbZoneFilter);
+    body.appendChild(kbEl('div', 'kb-meta',
+      'Cell <span class="kb-coord">' + esc(coord) + '</span>' +
+      (kbZoneFilter ? ' in ' + esc(kbZoneFilter) : ' in all zones') +
+      ' — ' + cards.length + ' card' + (cards.length === 1 ? '' : 's')));
+    if (!cards.length) {
+      body.appendChild(kbEl('div', 'kb-empty', 'No card at ' + esc(coord) +
+        (kbZoneFilter ? ' in ' + esc(kbZoneFilter) + ' — try another zone chip or none' : '') + '.'));
+      return;
+    }
+    cards.forEach((c) => kbResultItem(body, 'card', c));
+    return;
+  }
+
+  const hits = kbSearch(q, 12);
+  body.appendChild(kbEl('div', 'kb-meta',
+    '‘' + esc(q) + '’ — ' + hits.length + ' match' + (hits.length === 1 ? '' : 'es') +
+    ' across all five stores, best first'));
+  if (!hits.length) {
+    body.appendChild(kbEl('div', 'kb-empty', 'Nothing matched. Fewer or different words often help.'));
+    return;
+  }
+  hits.forEach((h) => {
+    const x = kbResolve(h.kind, h.id);
+    if (x) kbResultItem(body, h.kind, x);
+  });
+}
+
+/* ---------- portable session context (Spec 5, the piece that fits) ----
+ * The handoff's multi-model orchestration mostly dissolves here: this
+ * page holds no API keys, manages no rate limits, and is structurally
+ * Claude-only. What survives — and matters — is CONTEXT SERIALIZATION:
+ * one command that packages the session's state as a self-describing
+ * markdown block the user carries to whichever assistant works next.
+ * The human is the bridge; this hands them the complete suitcase. */
+function exportSession() {
+  const turns = store.recallTurns(24, 60000);
+  const c = kb.counts();
+  const pkg = '# Strata Console — portable session context\n' +
+    'exported: ' + new Date().toISOString() + '\n' +
+    'mode: ' + zone + ' (' + (ZONE_MEANING[zone] || '?') + ') · overlay: ' +
+    (overlayMode === 'off' ? 'off' : overlayMode) + ' · target load: ' + cogLoad + '/10\n' +
+    'active glyphs (latest message): ' + (avGlyphs.length ? avGlyphs.join(' ') : 'none') + '\n' +
+    'knowledge base: ' + c.cards + ' cards · ' + c.documents + ' documents · ' +
+    c.notes + ' notes · ' + c.journal + ' journal · ' + c.glossary + ' glossary\n' +
+    'attachment: ' + (attachment ? (attachment.image ? '🖼 ' : '📎 ') + attachment.name : 'none') + '\n\n' +
+    '## Conversation recall (' + turns.length + ' turn' + (turns.length === 1 ? '' : 's') + ', oldest first)\n\n' +
+    (turns.length
+      ? turns.map((t) => '**' + t.role + ':** ' + t.content).join('\n\n')
+      : '(nothing above the clear floor)') + '\n';
+  copyText(pkg).then((ok) => {
+    note(ok
+      ? '⧉ Session context exported — ' + pkg.length.toLocaleString() +
+        ' characters on the clipboard. Paste it to any assistant to continue ' +
+        'with this session\'s full context.'
+      : '⧉ The browser refused clipboard access — the export did not happen.', !ok);
+  });
+}
+
+function kbDoSearch(q) {
+  kbQuery = String(q || '').trim();
+  if ($('kb-q')) $('kb-q').value = kbQuery;
+  kbToggle(true);
+  kbRender();
 }
 
 function kbRenderLibrary(body) {
@@ -1923,7 +2884,8 @@ function kbRenderLibrary(body) {
     body.appendChild(kbItem(d.title,
       esc(kbWhen(d.at)) + ' · ' + sizeKB + ' KB',
       d.body,
-      () => { kb.remove('documents', d.id); note('🗂 Document deleted: ' + d.title); kbRender(); }));
+      () => { kb.remove('documents', d.id); note('🗂 Document deleted: ' + d.title); kbRender(); },
+      () => kbCopyItem('document', d)));
   });
 }
 
@@ -1939,6 +2901,10 @@ function kbRenderCards(body) {
     '<select id="kb-card-zone"><option>GREEN</option><option>YELLOW</option><option>RED</option></select></div>' +
     '<div style="flex:1 1 90px"><label for="kb-card-load">Load (1–10)</label>' +
     '<input type="text" id="kb-card-load" value="5"></div>' +
+    '<div style="flex:1 1 150px"><label for="kb-card-glyph">Glyph</label>' +
+    '<select id="kb-card-glyph"><option value="">— none —</option>' +
+    GLYPHS.map((g) => '<option value="' + g.glyph + '">' + g.glyph + ' ' + g.name + '</option>').join('') +
+    '</select></div>' +
     '</div>';
   const row = kbEl('div', 'kb-row');
   row.appendChild(kbBtn('Add card', () => {
@@ -1950,8 +2916,9 @@ function kbRenderCards(body) {
       coord: $('kb-card-coord').value.trim(),
       zone: $('kb-card-zone').value,
       load: parseInt($('kb-card-load').value, 10),
+      glyph: $('kb-card-glyph').value,
     });
-    note('🗂 Card added at ' + c.coord + ': ' + c.title);
+    note('🗂 Card added at ' + c.coord + (c.glyph ? ' ' + c.glyph : '') + ': ' + c.title);
     kbRender();
   }));
   form.appendChild(row);
@@ -1960,15 +2927,47 @@ function kbRenderCards(body) {
     body.appendChild(kbEl('div', 'kb-empty', 'No cards yet.'));
     return;
   }
-  kb.data.cards.forEach((c) => {
-    const meta = '<span class="kb-coord">' + esc(c.coord) + '</span>' +
+
+  /* v2 filtering: glyph + zone chips, and the list ordered by cognitive
+     load, low → high — the lightest lift always sits on top. */
+  const filt = kbEl('div', 'kb-row');
+  const chip = (label, active, fn) => {
+    const b = kbBtn(label, fn);
+    b.setAttribute('aria-pressed', active ? 'true' : 'false');
+    if (active) { b.style.background = 'var(--fill)'; b.style.fontWeight = '600'; }
+    return b;
+  };
+  filt.appendChild(chip('All', !kbGlyphFilter && !kbZoneFilter,
+    () => { kbGlyphFilter = ''; kbZoneFilter = ''; kbRender(); }));
+  ['GREEN', 'YELLOW', 'RED'].forEach((z) => filt.appendChild(
+    chip(z, kbZoneFilter === z, () => { kbZoneFilter = (kbZoneFilter === z) ? '' : z; kbRender(); })));
+  [...new Set(kb.data.cards.map((c) => c.glyph).filter(Boolean))].forEach((g) => filt.appendChild(
+    chip(g, kbGlyphFilter === g, () => { kbGlyphFilter = (kbGlyphFilter === g) ? '' : g; kbRender(); })));
+  body.appendChild(filt);
+
+  let cards = kb.data.cards.slice();
+  if (kbGlyphFilter) cards = cards.filter((c) => c.glyph === kbGlyphFilter);
+  if (kbZoneFilter) cards = cards.filter((c) => c.zone === kbZoneFilter);
+  cards.sort((a, b) => (a.load || 5) - (b.load || 5));
+  if (!cards.length) {
+    body.appendChild(kbEl('div', 'kb-empty', 'No cards match this filter.'));
+    return;
+  }
+  cards.forEach((c) => {
+    const meta = (c.glyph ? '<span>' + esc(c.glyph) + '</span>' : '') +
+      '<span class="kb-coord">' + esc(c.coord) + '</span>' +
       '<span class="kb-zone ' + esc(c.zone) + '">' + esc(c.zone) + '</span>' +
       '<span>load ' + c.load + '/10</span>' +
+      (c.glyphHistory && c.glyphHistory.length
+        ? '<span title="glyph changes recorded in this card\'s history">↺ ' + c.glyphHistory.length + '</span>' : '') +
+      (c.links && c.links.length
+        ? '<span title="links to other cards — the full list rides with ⧉ Copy">🔗 ' + c.links.length + '</span>' : '') +
       (c.byAssistant
         ? '<span>🤖 assistant' + (c.reason ? ' — ' + esc(c.reason) : '') + '</span>'
         : '');
     body.appendChild(kbItem(c.title, meta, c.body,
-      () => { kb.remove('cards', c.id); note('🗂 Card deleted: ' + c.title); kbRender(); }));
+      () => { kb.remove('cards', c.id); note('🗂 Card deleted: ' + c.title); kbRender(); },
+      () => kbCopyItem('card', c)));
   });
 }
 
@@ -1995,7 +2994,8 @@ function kbRenderNotes(body) {
     body.appendChild(kbItem(n.title,
       esc(kbWhen(n.at)) + (n.byAssistant ? ' · 🤖 assistant' : ''),
       n.body,
-      () => { kb.remove('notes', n.id); note('🗂 Note deleted: ' + n.title); kbRender(); }));
+      () => { kb.remove('notes', n.id); note('🗂 Note deleted: ' + n.title); kbRender(); },
+      () => kbCopyItem('note', n)));
   });
 }
 
@@ -2022,7 +3022,8 @@ function kbRenderJournal(body) {
     body.appendChild(kbItem(kbWhen(j.at),
       j.byAssistant ? '🤖 assistant' : '',
       j.body,
-      () => { kb.remove('journal', j.id); note('🗂 Journal entry deleted.'); kbRender(); }));
+      () => { kb.remove('journal', j.id); note('🗂 Journal entry deleted.'); kbRender(); },
+      () => kbCopyItem('journal', j)));
   });
 }
 
@@ -2049,7 +3050,8 @@ function kbRenderGlossary(body) {
     body.appendChild(kbItem(g.term,
       esc(kbWhen(g.at)) + (g.byAssistant ? ' · 🤖 assistant' : ''),
       g.definition,
-      () => { kb.remove('glossary', g.id); note('🗂 Term deleted: ' + g.term); kbRender(); }));
+      () => { kb.remove('glossary', g.id); note('🗂 Term deleted: ' + g.term); kbRender(); },
+      () => kbCopyItem('term', g)));
   });
 }
 
@@ -2084,6 +3086,1117 @@ function kbHandleFile(file) {
   reader.readAsText(file);
 }
 
+/* ---------- avatar visualizer ------------------------------------------
+ * Ported from React/Tailwind integration directions into the console's
+ * own idiom. What the directions called hooks and JSX are here plain
+ * variables, listeners and SVG strings — same drawing, no framework.
+ * Every input is a REAL signal, not a demo slider:
+ *   mode      — processing while a pod call is in flight; error for a
+ *               few seconds after a pod failure; focus while there is
+ *               recent typing/clicking; idle otherwise.
+ *   load      — in-flight call + how many sources are ticked.
+ *   activity  — rolling count of keystrokes and clicks (last 60 s).
+ *   coherence — conversation recall depth + knowledge base depth.
+ *   valence   — dips on errors, lifts with activity.
+ *   glyphs    — the operator tokens in the newest message light their
+ *               shapes on the avatar until the next message.
+ * Colours are the console's measured hues, so the avatar lives in the
+ * same visual world as the modes it reflects. Reduced motion: static. */
+
+const AV_ZONE_HUE = { GREEN: '#4CAF50', YELLOW: '#FFC400', RED: '#F25430' };
+const AV_MODE = {
+  processing: { color: '#8FBEDA', speed: 2.4 },
+  error:      { color: '#E09090', speed: 1.0 },
+  focus:      { color: null,      speed: 1.4 },   // null: the zone's hue
+  idle:       { color: '#9AA6B2', speed: 0.4 },
+};
+
+/* Spec 3: the Omega-1 overlay conditions the avatar too — flow
+ * accelerates and brightens, safe mode settles and dims, crisis
+ * compresses the field, dims every glyph but 🔺, and tints the whole
+ * orb with the console's own soft-alarm hue. Transitions between
+ * overlays INTERPOLATE: avFx eases toward the target a fraction per
+ * tick (≈800 ms to settle at the 120 ms cadence — the spec's own
+ * transition duration), so a mode change is a glide, never a jump.
+ * Reduced motion snaps instantly and stays still, as everywhere else. */
+const AV_OVERLAY_FX = {
+  off:             { speed: 1.0, glow: 1.0,  glyphScale: 1.0,  compress: 1.0 },
+  executive_focus: { speed: 1.3, glow: 1.1,  glyphScale: 1.05, compress: 1.0 },
+  safe_mode:       { speed: 0.5, glow: 0.7,  glyphScale: 0.95, compress: 1.0 },
+  flow_state:      { speed: 1.8, glow: 1.25, glyphScale: 1.1,  compress: 1.0 },
+  reflection_mode: { speed: 0.7, glow: 0.9,  glyphScale: 1.0,  compress: 1.0 },
+  crisis_triage:   { speed: 0.9, glow: 1.0,  glyphScale: 0.85, compress: 0.8,
+                     color: '#E09090', focusGlyph: '🔺' },
+};
+let avFx = { speed: 1, glow: 1, glyphScale: 1, compress: 1 };
+
+let avGlyphs = [];
+let avErrorAt = 0;
+let avEvents = [];
+let avPhase = 0;
+let avReduced = false;
+try {
+  const mq = matchMedia('(prefers-reduced-motion: reduce)');
+  avReduced = mq.matches;
+  mq.addEventListener('change', (e) => { avReduced = e.matches; });
+} catch (e) { /* no preference readable — animate */ }
+
+document.addEventListener('keydown', () => avEvents.push(Date.now()), true);
+document.addEventListener('click', () => avEvents.push(Date.now()), true);
+
+function avActivity() {
+  const cut = Date.now() - 60000;
+  avEvents = avEvents.filter((t) => t >= cut).slice(-200);
+  return Math.min(1, avEvents.length / 60);
+}
+
+function avSetGlyphs(glyphs) { avGlyphs = (glyphs || []).slice(0, 4); }
+
+function avMode() {
+  if (busyCtl) return 'processing';
+  if (Date.now() - avErrorAt < 8000) return 'error';
+  if (avActivity() > 0.05) return 'focus';
+  return 'idle';
+}
+
+function avMetrics() {
+  const activity = avActivity();
+  let load = busyCtl ? 0.45 : 0.1;
+  if ($('src-web').checked) load += 0.15;
+  if ($('src-drive').checked) load += 0.15;
+  if ($('src-kb').checked) load += 0.1;
+  if (attachment) load += 0.15;
+  const coherence = Math.min(1,
+    (store.recallTurns().length / 12) * 0.5 + (Math.min(kb.total(), 40) / 40) * 0.5);
+  const valence = (Date.now() - avErrorAt < 8000)
+    ? 0.25 : Math.min(1, 0.5 + activity * 0.35);
+  return { coherence, load: Math.min(1, load), activity, valence };
+}
+
+/* Glyph → geometry, for the console's own lexicon. A glyph without a
+   shape of its own shows as a dashed ring rather than vanishing. */
+function avGlyphShape(g, color, glow) {
+  const op = (0.45 + glow * 0.4).toFixed(2);
+  const base = `fill="none" stroke="${color}" stroke-width="1.4" opacity="${op}"`;
+  if (g === '🔺') return `<polygon points="50,16 84,82 16,82" ${base}/>`;
+  if (g === '💠') return `<polygon points="50,22 72,50 50,78 28,50" ${base}/>`;
+  if (g === '🔸') return `<polygon points="50,34 62,50 50,66 38,50" ${base}/>`;
+  if (g === '⭕') return `<circle cx="50" cy="50" r="32" ${base}/>`;
+  if (g === '⚪') return `<circle cx="50" cy="50" r="24" ${base}/>`;
+  if (g === '🎯') return `<circle cx="50" cy="50" r="34" ${base}/><circle cx="50" cy="50" r="22" ${base}/>`;
+  if (g === '🌊') {
+    return `<path d="M 10 44 Q 22 30, 34 44 T 58 44 T 82 44" ${base}/>` +
+           `<path d="M 18 60 Q 30 46, 42 60 T 66 60 T 90 60" ${base}/>`;
+  }
+  if (g === '🌀') return `<path d="M 12 50 Q 28 30, 50 50 T 88 50" ${base}/>`;
+  if (g === '🧊') {
+    const pts = [];
+    for (let i = 0; i < 6; i += 1) {
+      const a = (Math.PI / 3) * i - Math.PI / 2;
+      pts.push((50 + 27 * Math.cos(a)).toFixed(1) + ',' + (50 + 27 * Math.sin(a)).toFixed(1));
+    }
+    return `<polygon points="${pts.join(' ')}" ${base}/>`;
+  }
+  if (g === '🔷') return `<polygon points="50,18 78,50 50,82 22,50" ${base}/>`;
+  if (g === '⚡') return `<polyline points="56,14 38,52 52,52 42,86" ${base}/>`;
+  if (g === '🐍') return `<path d="M 50 18 A 32 32 0 1 1 26 30" ${base}/>`;
+  if (g === '🌳') return `<path d="M 50 84 L 50 44 M 50 64 L 32 46 M 50 58 L 68 40 M 50 44 L 50 24" ${base}/>`;
+  if (g === '🔄') return `<path d="M 30 40 A 26 26 0 0 1 74 46" ${base}/><path d="M 70 60 A 26 26 0 0 1 26 54" ${base}/>`;
+  if (g === '🔗') return `<circle cx="40" cy="50" r="16" ${base}/><circle cx="60" cy="50" r="16" ${base}/>`;
+  if (g === '🤝') return `<circle cx="38" cy="50" r="20" ${base}/><circle cx="62" cy="50" r="20" ${base}/>`;
+  if (g === '🔮') return `<circle cx="50" cy="50" r="30" ${base}/><path d="M 30 40 H 70 M 30 60 H 70 M 40 30 V 70 M 60 30 V 70" ${base}/>`;
+  return `<circle cx="50" cy="50" r="36" stroke-dasharray="4 4" ${base}/>`;
+}
+
+function avDraw(svg, mode, m) {
+  const conf = AV_MODE[mode] || AV_MODE.idle;
+  const fxT = AV_OVERLAY_FX[overlayMode] || AV_OVERLAY_FX.off;
+  const color = (fxT.color && overlayMode === 'crisis_triage')
+    ? fxT.color
+    : (conf.color || AV_ZONE_HUE[zone] || '#8FBEDA');
+  const glow = Math.min(1, (0.2 + m.coherence * 0.8) * avFx.glow);
+  const pulse = avReduced ? 1 : 1 + 0.12 * Math.sin(avPhase * 0.09 * conf.speed * avFx.speed);
+  const r = (11 + m.load * 6) * pulse;
+  const core = m.valence < 0.35 ? '#E09090' : (m.valence > 0.75 ? '#4CAF50' : '#8FBEDA');
+  const cz = avFx.compress;
+  let rings = '';
+  for (let i = 0; i < 7; i += 1) {
+    rings += `<circle cx="50" cy="50" r="${((8 + i * 6) * cz).toFixed(1)}" fill="none" stroke="rgba(220,228,238,0.06)" stroke-width="0.5"/>`;
+  }
+  let lines = '';
+  for (let i = 0; i < 12; i += 1) {
+    const a = (Math.PI * 2 * i) / 12;
+    lines += `<line x1="50" y1="50" x2="${(50 + 44 * cz * Math.cos(a)).toFixed(1)}" y2="${(50 + 44 * cz * Math.sin(a)).toFixed(1)}" stroke="rgba(220,228,238,0.05)" stroke-width="0.3"/>`;
+  }
+  const spin = avReduced ? 0 : (avPhase * (0.2 + m.activity * 0.8) * conf.speed * avFx.speed) % 360;
+  const glyphMarkup = avGlyphs.map((g) => {
+    /* Crisis dims every glyph but the focus glyph — triage in pixels. */
+    const gGlow = (fxT.focusGlyph && g !== fxT.focusGlyph) ? glow * 0.35 : glow;
+    return avGlyphShape(g, color, gGlow);
+  }).join('');
+  svg.innerHTML =
+    `<g transform="rotate(${spin.toFixed(1)} 50 50)">${rings}${lines}</g>` +
+    `<circle cx="50" cy="50" r="${(r * 1.9).toFixed(1)}" fill="${color}" opacity="${(0.08 + glow * 0.14).toFixed(2)}"/>` +
+    `<circle cx="50" cy="50" r="${r.toFixed(1)}" fill="none" stroke="${color}" stroke-width="1.6" opacity="${(0.35 + glow * 0.5).toFixed(2)}"/>` +
+    `<circle cx="50" cy="50" r="${(r * 0.26).toFixed(1)}" fill="${core}"/>` +
+    `<g transform="translate(50 50) scale(${avFx.glyphScale.toFixed(3)}) translate(-50 -50)">${glyphMarkup}</g>`;
+}
+
+function avStatsText(mode, m) {
+  const pct = (v) => Math.round(v * 100) + '%';
+  return 'Mode: <b>' + esc(mode) + (mode === 'focus' ? ' · ' + esc(zone) : '') + '</b><br>' +
+    'Coherence: <b>' + pct(m.coherence) + '</b><br>' +
+    'Load: <b>' + pct(m.load) + '</b><br>' +
+    'Activity: <b>' + pct(m.activity) + '</b><br>' +
+    'Valence: <b>' + pct(m.valence) + '</b>' +
+    (avGlyphs.length ? '<br>Tokens: <b>' + esc(avGlyphs.join(' ')) + '</b>' : '') +
+    (avReduced ? '<br>Reduced motion — static view' : '');
+}
+
+function avToggle(open) {
+  const panel = $('av-panel');
+  const want = (open === undefined) ? panel.hidden : !!open;
+  panel.hidden = !want;
+  $('avatar').setAttribute('aria-expanded', want ? 'true' : 'false');
+  avTick();
+}
+
+function avTick() {
+  avPhase += 1;
+  /* Ease avFx toward the active overlay's targets: v += (t − v)·k is
+     the classic exponential-approach lerp — ≈800 ms to settle at k=0.14
+     and 120 ms ticks. Reduced motion snaps (k=1). */
+  const fxT = AV_OVERLAY_FX[overlayMode] || AV_OVERLAY_FX.off;
+  const k = avReduced ? 1 : 0.14;
+  avFx.speed += (fxT.speed - avFx.speed) * k;
+  avFx.glow += (fxT.glow - avFx.glow) * k;
+  avFx.glyphScale += (fxT.glyphScale - avFx.glyphScale) * k;
+  avFx.compress += (fxT.compress - avFx.compress) * k;
+  const mode = avMode();
+  const m = avMetrics();
+  avDraw($('av-mini'), mode, m);
+  $('avatar').setAttribute('aria-label', 'Avatar — console state: ' + mode);
+  const panel = $('av-panel');
+  if (!panel.hidden) {
+    avDraw($('av-big'), mode, m);
+    $('av-stats').innerHTML = avStatsText(mode, m);
+  }
+}
+setInterval(avTick, avReduced ? 1000 : 120);
+
+/* ---------- glyph keyboard ---------------------------------------------
+ * The Phase-1 keyboard handoff, translated into this page's idiom. The
+ * keys TYPE INTO the message box — one input path, never two — so the
+ * whole pipeline (glyph classification, matrix conditioning, avatar
+ * lighting) works on a tapped glyph exactly as on a typed one, with no
+ * new machinery. The sequence bar mirrors the message as it is built:
+ * the chain, its translation, and the grammar layer's verdict. Verdicts
+ * are ADVISORY — a hint is never a gate, and Send remains the only
+ * trigger; the handoff's auto-execute-on-chain-completion was declined
+ * because an input device must never fire the send. */
+
+const KBD_BANKS = [
+  ['Codex v2', ['🔺', '🧊', '🔸', '🌀', '🥥', '💠', '⚪', '🌊', '🎯']],
+  ['Legacy + v3.8 expansion', ['⭕', '🔮', '🤝', '🔷', '🐍', '⚡', '🌳', '🔄', '🔗']],
+];
+
+/* The spec's number-row ten, kept exactly as filed — reached as
+ * Alt+digit, because a bare digit must stay a digit while typing. */
+const KBD_ALT_DIGITS = { 1: '🔺', 2: '🧊', 3: '🔸', 4: '⭕', 5: '🔷',
+                         6: '💠', 7: '🌀', 8: '🔮', 9: '🐍', 0: '🌊' };
+
+const KBD_OPS = [
+  ['→', 'then — sequential chain'],
+  ['+', 'and — in parallel'],
+  ['↔', 'mirror — balance two different glyphs'],
+  ['within', 'nesting — A within B'],
+  ['(', 'open a group'],
+  [')', 'close a group'],
+];
+const KBD_OP_PAD = { 'within': ' within ', '→': ' → ', '+': ' + ',
+                     '↔': ' ↔ ', '(': ' (', ')': ') ' };
+const KBD_ACTION_OPENERS = ['🔺', '🔸', '💠', '🤝', '🥥'];
+
+let kbdOpenState = false;
+
+function kbdAltHint(glyph) {
+  for (const [d, g] of Object.entries(KBD_ALT_DIGITS)) {
+    if (g === glyph) return 'Alt+' + d;
+  }
+  return '';
+}
+
+function kbdRecentList() {
+  const r = store.getState('kbd_recent', []);
+  return Array.isArray(r) ? r.filter((g) => GLYPHS.some((x) => x.glyph === g)) : [];
+}
+
+function kbdRemember(glyph) {
+  const r = kbdRecentList().filter((g) => g !== glyph);
+  r.unshift(glyph);
+  store.setState('kbd_recent', r.slice(0, 6));
+}
+
+/* Insert at the caret, keep focus in the box, keep the box growing —
+ * exactly what typing the character would have done. */
+function insertIntoMsg(text) {
+  const b = $('msg');
+  const s = b.selectionStart == null ? b.value.length : b.selectionStart;
+  const e = b.selectionEnd == null ? b.value.length : b.selectionEnd;
+  b.value = b.value.slice(0, s) + text + b.value.slice(e);
+  const pos = s + text.length;
+  b.focus();
+  try { b.setSelectionRange(pos, pos); } catch (err) { /* box keeps the end */ }
+  grow(b);
+  kbdSeqUpdate();
+}
+
+/* Backspace that respects surrogate pairs — deleting half an emoji
+ * leaves mojibake, so the last CODE POINT goes, not the last unit. */
+function kbdBackspace() {
+  const b = $('msg');
+  let s = b.selectionStart == null ? b.value.length : b.selectionStart;
+  const e = b.selectionEnd == null ? b.value.length : b.selectionEnd;
+  if (s === e && s > 0) {
+    const head = Array.from(b.value.slice(0, s));
+    head.pop();
+    const kept = head.join('');
+    b.value = kept + b.value.slice(s);
+    s = kept.length;
+  } else if (e > s) {
+    b.value = b.value.slice(0, s) + b.value.slice(e);
+  }
+  b.focus();
+  try { b.setSelectionRange(s, s); } catch (err) { /* box keeps the end */ }
+  grow(b);
+  kbdSeqUpdate();
+}
+
+function kbdPress(glyph) {
+  kbdRemember(glyph);
+  insertIntoMsg(glyph);
+  if (kbdOpenState) kbdRender();   // the Recent row updates
+}
+
+function kbdLabelEl(text) {
+  const d = document.createElement('div');
+  d.className = 'kbd-lbl';
+  d.textContent = text;
+  return d;
+}
+
+function kbdKey(glyph) {
+  const g = GLYPHS.find((x) => x.glyph === glyph);
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'kbd-key';
+  const name = g ? g.name.replace(/_/g, ' ') : glyph;
+  b.innerHTML = '<span class="kg" aria-hidden="true">' + esc(glyph) + '</span>' +
+                '<span class="kn">' + esc(name) + '</span>';
+  b.setAttribute('aria-label', name + ' glyph');
+  let title = glyph + ' ' + name + (g && g.fn ? ' — ' + g.fn : '');
+  if (g && g.zone) title += ' · zone ' + g.zone;
+  if (g && g.load) title += ' · load ' + g.load[0] + '–' + g.load[1];
+  if (g && g.instr) title += '\n' + g.instr;
+  const alt = kbdAltHint(glyph);
+  if (alt) title += '\n' + alt + ' types it from anywhere.';
+  /* The load dial informs, never locks (Phase 1B feature 7, honest
+     form): a glyph whose load range starts above the dial dims but
+     stays fully usable. */
+  if (g && g.load && g.load[0] > cogLoad) {
+    b.classList.add('dim');
+    title += '\nDimmed: its load range starts above your load dial (' +
+             cogLoad + '/10). Still usable — dimming is information, not a lock.';
+  }
+  b.title = title;
+  b.addEventListener('click', () => kbdPress(glyph));
+  return b;
+}
+
+function kbdOpKey(sym, hint) {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'kbd-key op';
+  b.innerHTML = '<span class="kg" aria-hidden="true">' + esc(sym) + '</span>';
+  b.setAttribute('aria-label', hint);
+  b.title = sym + ' — ' + hint;
+  b.addEventListener('click', () => insertIntoMsg(KBD_OP_PAD[sym] || sym));
+  return b;
+}
+
+function kbdUtilKey(sym, label, fn) {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'kbd-key op';
+  b.innerHTML = '<span class="kg" aria-hidden="true">' + esc(sym) + '</span>' +
+                '<span class="kn">' + esc(label) + '</span>';
+  b.setAttribute('aria-label', label);
+  b.title = label;
+  b.addEventListener('click', fn);
+  return b;
+}
+
+function kbdRender() {
+  const panel = $('kbd-panel');
+  if (!panel || panel.hidden) return;
+  panel.innerHTML = '';
+  const rows = document.createElement('div');
+  rows.className = 'kbd-rows';
+  const recent = kbdRecentList();
+  if (recent.length) {
+    rows.appendChild(kbdLabelEl('Recent'));
+    const r = document.createElement('div');
+    r.className = 'kbd-row';
+    recent.forEach((g) => r.appendChild(kbdKey(g)));
+    rows.appendChild(r);
+  }
+  KBD_BANKS.forEach(([label, glyphs]) => {
+    rows.appendChild(kbdLabelEl(label));
+    const r = document.createElement('div');
+    r.className = 'kbd-row';
+    glyphs.forEach((g) => r.appendChild(kbdKey(g)));
+    rows.appendChild(r);
+  });
+  rows.appendChild(kbdLabelEl('Operators'));
+  const opRow = document.createElement('div');
+  opRow.className = 'kbd-row';
+  KBD_OPS.forEach(([sym, hint]) => opRow.appendChild(kbdOpKey(sym, hint)));
+  opRow.appendChild(kbdUtilKey('␣', 'Space', () => insertIntoMsg(' ')));
+  opRow.appendChild(kbdUtilKey('⌫', 'Backspace', kbdBackspace));
+  rows.appendChild(opRow);
+  panel.appendChild(rows);
+  const seq = document.createElement('div');
+  seq.className = 'kbd-seq';
+  seq.id = 'kbd-seq';
+  panel.appendChild(seq);
+  kbdSeqUpdate();
+}
+
+/* Tokenize the message the way the grammar layer reads it: glyphs and
+ * the three chain operators, in order; everything else is prose and
+ * passes through untouched. */
+function kbdTokens(text) {
+  const byChar = new Map(GLYPHS.map((g) => [g.glyph, g]));
+  const ops = new Set(['→', '↔', '+']);
+  const out = [];
+  for (const ch of Array.from(String(text || ''))) {
+    if (byChar.has(ch)) out.push({ glyph: byChar.get(ch) });
+    else if (ops.has(ch)) out.push({ op: ch });
+  }
+  return out;
+}
+
+/* The grammar layer's rules (H9), as ADVICE: chains open with an action
+ * glyph, cap at seven, no doubled glyphs, ↔ pairs exactly two distinct
+ * glyphs. Never a gate — the verdict informs, the user decides. */
+function kbdVerdict(tokens) {
+  const glyphs = tokens.filter((t) => t.glyph);
+  const notes = [];
+  if (glyphs.length > 7) notes.push('over 7 glyphs — the grammar caps a chain at seven');
+  for (let i = 1; i < tokens.length; i += 1) {
+    if (tokens[i].glyph && tokens[i - 1].glyph &&
+        tokens[i].glyph.glyph === tokens[i - 1].glyph.glyph) {
+      notes.push('a glyph repeats back-to-back — the grammar reads that as a stutter');
+      break;
+    }
+  }
+  tokens.forEach((t, i) => {
+    if (t.op !== '↔') return;
+    const a = tokens[i - 1], b = tokens[i + 1];
+    if (!a || !b || !a.glyph || !b.glyph) notes.push('↔ pairs exactly two glyphs, one on each side');
+    else if (a.glyph.glyph === b.glyph.glyph) notes.push('↔ balances two DIFFERENT glyphs');
+  });
+  if (glyphs.length >= 2 && !KBD_ACTION_OPENERS.includes(glyphs[0].glyph.glyph)) {
+    notes.push('chains usually open with an action glyph (🔺 🔸 💠 🤝 🥥)');
+  }
+  const unique = [...new Set(notes)];
+  return { ok: !unique.length, notes: unique };
+}
+
+function kbdSeqUpdate() {
+  const el = $('kbd-seq');
+  if (!el || !kbdOpenState) return;
+  const tokens = kbdTokens($('msg').value);
+  if (!tokens.some((t) => t.glyph)) {
+    el.innerHTML = '<span class="trans">Tap glyphs to build a chain — the sequence bar ' +
+      'translates it here and checks it against the grammar. Advisory only: ' +
+      'a hint is never a gate.</span>';
+    return;
+  }
+  const chain = tokens.map((t) => (t.glyph ? t.glyph.glyph : t.op)).join(' ');
+  const trans = tokens.map((t) => (t.glyph ? t.glyph.name.replace(/_/g, ' ') : t.op)).join(' ');
+  const v = kbdVerdict(tokens);
+  el.innerHTML =
+    '<span class="chain">' + esc(chain) + '</span>' +
+    '<span class="trans">' + esc(trans) + '</span>' +
+    (v.ok ? '<span class="ok">✓ reads clean</span>'
+          : '<span class="warn">' + esc(v.notes.join(' · ')) + '</span>');
+}
+
+function kbdToggle(open) {
+  kbdOpenState = (open === undefined) ? !kbdOpenState : !!open;
+  const panel = $('kbd-panel');
+  panel.hidden = !kbdOpenState;
+  $('kbd-open').setAttribute('aria-expanded', kbdOpenState ? 'true' : 'false');
+  if (kbdOpenState) kbdRender();
+}
+
+/* ---------- Strata Sheets ----------------------------------------------
+ * A working spreadsheet, in the console's own idiom — no framework, no
+ * library, and honestly scoped: the LibreOffice-class suite cannot live
+ * inside a single self-contained page, but the 20% of a spreadsheet
+ * that covers 80% of real use can. Cells run A1–Z200, the SAME
+ * coordinate grammar as the knowledge base's A1 filing system. A cell
+ * holds a number, text, or a formula starting with '=' — arithmetic,
+ * cell refs, ranges inside functions, and SUM, AVERAGE (AVG), COUNT,
+ * MIN, MAX, ROUND, ABS.
+ *
+ * The engine is the classic three-stage kernel, small enough to read:
+ *   1. TOKENIZE  — the formula string becomes tokens (numbers, refs,
+ *      operators, function names);
+ *   2. PARSE     — a recursive-descent parser walks the tokens with
+ *      correct precedence (* / bind tighter than + -, parens override);
+ *   3. EVALUATE  — cell references recurse into other cells, memoized
+ *      so each cell computes once, with a visiting set that turns
+ *      A1→B1→A1 loops into an honest #CYCLE instead of a hang.
+ * Errors are values, not crashes: #ERROR (bad syntax), #VALUE (text
+ * where a number belongs), #REF (outside the grid), #CYCLE, #DIV/0.
+ *
+ * Storage: its own key (strata_sheets_v1), fully separate from the
+ * conversation stores and the KB — none of the three can touch the
+ * others. localStorage is a few MB, so this is honest about being a
+ * personal sheet, not a data warehouse; CSV carries data in and out
+ * (⧉ copies computed values; ⬇ downloads a .csv that Excel, Google
+ * Sheets and LibreOffice all open — the human-is-the-bridge pattern,
+ * again). The pod assistant reads and writes sheets only through the
+ * page-defined tools below: applied locally, logged, reported. */
+
+function shColLetter(i) { return String.fromCharCode(65 + i); }
+
+function shParseRef(t) {
+  const m = /^([A-Z])([0-9]{1,3})$/.exec(String(t || ''));
+  if (!m) return null;
+  const r = parseInt(m[2], 10) - 1;
+  if (r < 0) return null;
+  return { c: m[1].charCodeAt(0) - 65, r: r, addr: m[1] + m[2] };
+}
+
+const sheets = (() => {
+  const KEY = 'strata_sheets_v1';
+  const MAX_ROWS = 200, MAX_COLS = 26;
+  const blank = () => ({ list: [], activeId: '' });
+  let data = blank();
+  try {
+    const raw = localStorage.getItem(KEY);
+    if (raw) data = Object.assign(blank(), JSON.parse(raw));
+  } catch (e) { data = blank(); }
+  if (!Array.isArray(data.list)) data.list = [];
+  const save = () => { try { localStorage.setItem(KEY, JSON.stringify(data)); } catch (e) { /* memory-only */ } };
+  const uid = () => 's-' + Math.random().toString(36).slice(2, 8) + '-' + Date.now().toString(36);
+  return {
+    get data() { return data; },
+    MAX_ROWS: MAX_ROWS, MAX_COLS: MAX_COLS,
+    active() { return data.list.find((s) => s.id === data.activeId) || data.list[0] || null; },
+    byName(name) {
+      const low = String(name || '').trim().toLowerCase();
+      return low ? data.list.find((s) => s.name.toLowerCase() === low) : null;
+    },
+    create(name) {
+      const s = { id: uid(),
+                  name: String(name || 'Sheet ' + (data.list.length + 1)).trim().slice(0, 60) || 'Sheet',
+                  rows: 20, cols: 8, cells: {} };
+      data.list.push(s);
+      data.activeId = s.id;
+      save();
+      return s;
+    },
+    setActive(id) { if (data.list.some((x) => x.id === id)) { data.activeId = id; save(); } },
+    rename(id, name) {
+      const s = data.list.find((x) => x.id === id);
+      if (s && String(name || '').trim()) { s.name = String(name).trim().slice(0, 60); save(); }
+    },
+    remove(id) {
+      const i = data.list.findIndex((x) => x.id === id);
+      if (i < 0) return;
+      data.list.splice(i, 1);
+      if (data.activeId === id) data.activeId = data.list[0] ? data.list[0].id : '';
+      save();
+    },
+    setCell(s, addr, raw) {
+      const v = String(raw === undefined || raw === null ? '' : raw);
+      if (v === '') delete s.cells[addr]; else s.cells[addr] = v;
+      save();
+    },
+    addRow(s) { if (s.rows >= MAX_ROWS) return false; s.rows += 1; save(); return true; },
+    addCol(s) { if (s.cols >= MAX_COLS) return false; s.cols += 1; save(); return true; },
+    growTo(s, rows, cols) {
+      s.rows = Math.max(s.rows, Math.min(rows, MAX_ROWS));
+      s.cols = Math.max(s.cols, Math.min(cols, MAX_COLS));
+      save();
+    },
+    importGrid(s, grid) {
+      s.cells = {};
+      let cells = 0, clipped = false;
+      grid.forEach((row, r) => {
+        if (r >= MAX_ROWS) { clipped = true; return; }
+        row.forEach((val, c) => {
+          if (c >= MAX_COLS) { clipped = true; return; }
+          const v = String(val);
+          if (v !== '') { s.cells[shColLetter(c) + (r + 1)] = v; cells += 1; }
+        });
+      });
+      s.rows = Math.max(20, Math.min(MAX_ROWS, grid.length));
+      s.cols = Math.max(8, Math.min(MAX_COLS, grid.reduce((m, row) => Math.max(m, row.length), 1)));
+      save();
+      return { cells: cells, clipped: clipped };
+    },
+  };
+})();
+
+/* Stage 1: the tokenizer. Order matters — numbers before words, so
+ * "3" never gets swallowed by a ref, and refs/function names are both
+ * just 'word' tokens the parser tells apart by what follows. */
+function shTokenize(src) {
+  const s = String(src).toUpperCase();
+  const toks = [];
+  let i = 0;
+  while (i < s.length) {
+    const ch = s[i];
+    if (ch === ' ' || ch === '\t') { i += 1; continue; }
+    if ('+-*/(),:'.includes(ch)) { toks.push({ t: ch }); i += 1; continue; }
+    let m = /^[0-9]*\.?[0-9]+/.exec(s.slice(i));
+    if (m && m[0]) { toks.push({ t: 'num', v: parseFloat(m[0]) }); i += m[0].length; continue; }
+    m = /^[A-Z][A-Z0-9]*/.exec(s.slice(i));
+    if (m) { toks.push({ t: 'word', v: m[0] }); i += m[0].length; continue; }
+    throw { code: '#ERROR' };
+  }
+  return toks;
+}
+
+function shApplyFunc(name, args) {
+  const toNum = (v) => {
+    if (v === '' || v === undefined || v === null) return 0;
+    if (typeof v === 'number') return v;
+    throw { code: '#VALUE' };
+  };
+  const nums = args.filter((v) => typeof v === 'number');
+  switch (name) {
+    case 'SUM': return nums.reduce((a, b) => a + b, 0);
+    case 'AVERAGE':
+      if (!nums.length) throw { code: '#DIV/0' };
+      return nums.reduce((a, b) => a + b, 0) / nums.length;
+    case 'COUNT': return nums.length;
+    case 'MIN': return nums.length ? Math.min.apply(null, nums) : 0;
+    case 'MAX': return nums.length ? Math.max.apply(null, nums) : 0;
+    case 'ROUND': {
+      const x = toNum(args[0]);
+      const d = args.length > 1 ? toNum(args[1]) : 0;
+      const f = Math.pow(10, Math.max(-10, Math.min(10, Math.trunc(d))));
+      return Math.round(x * f) / f;
+    }
+    case 'ABS': return Math.abs(toNum(args[0]));
+    default: throw { code: '#NAME?' };
+  }
+}
+
+/* Stages 2 and 3 together: a recursive-descent parser that evaluates
+ * as it goes. cellValue() is handed in by shEvaluate, so a ref recurses
+ * into the other cell's own evaluation. */
+function shEvalFormula(src, sheet, cellValue) {
+  const toks = shTokenize(src);
+
+  /* A formula that is exactly one cell ref passes the value through
+     untouched — text included — so =A1 mirrors A1 faithfully. */
+  if (toks.length === 1 && toks[0].t === 'word' && shParseRef(toks[0].v)) {
+    const a = shParseRef(toks[0].v);
+    if (a.r >= sheet.rows || a.c >= sheet.cols) throw { code: '#REF' };
+    return cellValue(a.addr);
+  }
+
+  let p = 0;
+  const peek = () => toks[p];
+  const eat = (t) => { if (!toks[p] || toks[p].t !== t) throw { code: '#ERROR' }; return toks[p++]; };
+  const toNum = (v) => {
+    if (v === '' || v === undefined || v === null) return 0;
+    if (typeof v === 'number') return v;
+    throw { code: '#VALUE' };
+  };
+
+  function refValues(tok) {
+    const a = shParseRef(tok.v);
+    if (!a) throw { code: '#NAME?' };
+    if (peek() && peek().t === ':') {
+      p += 1;
+      const b = shParseRef(eat('word').v);
+      if (!b) throw { code: '#ERROR' };
+      const vals = [];
+      for (let r = Math.min(a.r, b.r); r <= Math.max(a.r, b.r); r += 1) {
+        for (let c = Math.min(a.c, b.c); c <= Math.max(a.c, b.c); c += 1) {
+          if (r >= sheet.rows || c >= sheet.cols) throw { code: '#REF' };
+          vals.push(cellValue(shColLetter(c) + (r + 1)));
+        }
+      }
+      return vals;
+    }
+    if (a.r >= sheet.rows || a.c >= sheet.cols) throw { code: '#REF' };
+    return [cellValue(a.addr)];
+  }
+
+  function factor() {
+    const t = peek();
+    if (!t) throw { code: '#ERROR' };
+    if (t.t === 'num') { p += 1; return t.v; }
+    if (t.t === '-') { p += 1; return -toNum(factor()); }
+    if (t.t === '(') { p += 1; const v = expr(); eat(')'); return v; }
+    if (t.t === 'word') {
+      p += 1;
+      if (peek() && peek().t === '(') {
+        p += 1;   // a function call
+        const name = t.v === 'AVG' ? 'AVERAGE' : t.v;
+        const args = [];
+        if (peek() && peek().t !== ')') {
+          for (;;) {
+            const at = peek();
+            /* A range like A1:A5 is only meaningful inside a function
+               argument, so it is recognized here and expanded. */
+            if (at && at.t === 'word' && shParseRef(at.v) &&
+                toks[p + 1] && toks[p + 1].t === ':') {
+              p += 1;
+              refValues(at).forEach((v) => args.push(v));
+            } else {
+              args.push(expr());
+            }
+            if (peek() && peek().t === ',') { p += 1; continue; }
+            break;
+          }
+        }
+        eat(')');
+        return shApplyFunc(name, args);
+      }
+      const vals = refValues(t);
+      if (vals.length !== 1) throw { code: '#ERROR' };
+      return toNum(vals[0]);
+    }
+    throw { code: '#ERROR' };
+  }
+  function term() {
+    let v = toNum(factor());
+    while (peek() && (peek().t === '*' || peek().t === '/')) {
+      const op = toks[p++].t;
+      const w = toNum(factor());
+      v = op === '*' ? v * w : v / w;
+    }
+    return v;
+  }
+  function expr() {
+    let v = term();
+    while (peek() && (peek().t === '+' || peek().t === '-')) {
+      const op = toks[p++].t;
+      const w = term();
+      v = op === '+' ? v + w : v - w;
+    }
+    return v;
+  }
+
+  const v = expr();
+  if (p !== toks.length) throw { code: '#ERROR' };
+  if (typeof v === 'number' && !isFinite(v)) throw { code: '#DIV/0' };
+  return v;
+}
+
+/* Evaluate the whole sheet: every cell once (memoized), cycles caught,
+ * errors recorded as values. Full recompute per change — at 26×200 the
+ * grid is small enough that correctness beats cleverness. */
+function shEvaluate(sheet) {
+  const out = {};
+  const visiting = new Set();
+  function cellValue(addr) {
+    if (out[addr]) {
+      if (out[addr].err) throw { code: out[addr].err };
+      return out[addr].v;
+    }
+    if (visiting.has(addr)) throw { code: '#CYCLE' };
+    visiting.add(addr);
+    let res;
+    try {
+      const raw = sheet.cells[addr];
+      if (raw === undefined || raw === '') {
+        res = { v: '' };
+      } else if (String(raw).charAt(0) === '=') {
+        res = { v: shEvalFormula(String(raw).slice(1), sheet, cellValue) };
+      } else {
+        const n = Number(raw);
+        res = (String(raw).trim() !== '' && isFinite(n)) ? { v: n } : { v: String(raw) };
+      }
+    } catch (e) {
+      res = { v: '', err: (e && e.code) || '#ERROR' };
+    }
+    visiting.delete(addr);
+    out[addr] = res;
+    if (res.err) throw { code: res.err };
+    return res.v;
+  }
+  for (let r = 0; r < sheet.rows; r += 1) {
+    for (let c = 0; c < sheet.cols; c += 1) {
+      try { cellValue(shColLetter(c) + (r + 1)); } catch (e) { /* recorded in out */ }
+    }
+  }
+  return out;
+}
+
+function shDisplay(res) {
+  if (!res) return '';
+  if (res.err) return res.err;
+  if (typeof res.v === 'number') return String(Math.round(res.v * 1e10) / 1e10);
+  return String(res.v);
+}
+
+function shToCSV(sheet) {
+  const out = shEvaluate(sheet);
+  const rows = [];
+  for (let r = 0; r < sheet.rows; r += 1) {
+    const row = [];
+    for (let c = 0; c < sheet.cols; c += 1) {
+      const d = shDisplay(out[shColLetter(c) + (r + 1)]);
+      row.push(/[",\n]/.test(d) ? '"' + d.replace(/"/g, '""') + '"' : d);
+    }
+    rows.push(row.join(','));
+  }
+  while (rows.length && /^,*$/.test(rows[rows.length - 1])) rows.pop();
+  return rows.join('\n');
+}
+
+/* CSV/TSV in: a small state machine that honors quoted fields. The
+ * delimiter is sniffed from the first line — a paste from Google
+ * Sheets or Excel arrives tab-separated, a .csv file comma-separated. */
+function shParseCSV(text) {
+  const src = String(text || '').replace(/\r\n?/g, '\n');
+  if (!src.trim()) return [];
+  const delim = src.split('\n')[0].includes('\t') ? '\t' : ',';
+  const rows = [[]];
+  let cur = '';
+  let inQ = false;
+  for (let i = 0; i < src.length; i += 1) {
+    const ch = src[i];
+    if (inQ) {
+      if (ch === '"') {
+        if (src[i + 1] === '"') { cur += '"'; i += 1; } else inQ = false;
+      } else cur += ch;
+    } else if (ch === '"' && cur === '') {
+      inQ = true;
+    } else if (ch === delim) {
+      rows[rows.length - 1].push(cur); cur = '';
+    } else if (ch === '\n') {
+      rows[rows.length - 1].push(cur); cur = '';
+      rows.push([]);
+    } else cur += ch;
+  }
+  rows[rows.length - 1].push(cur);
+  while (rows.length && rows[rows.length - 1].every((c) => c === '')) rows.pop();
+  return rows;
+}
+
+/* ---------- sheets UI -------------------------------------------------- */
+
+let shOpenState = false;
+let shImportOpen = false;
+let shSelected = 'A1';
+let shInputs = {};
+
+function shBadge() {
+  const btn = $('sheet-open');
+  if (!btn) return;
+  const n = sheets.data.list.length;
+  btn.innerHTML = '<span aria-hidden="true">📊</span> Sheets' + (n ? ' (' + n + ')' : '');
+}
+
+function shExportCSV() {
+  const s = sheets.active();
+  if (!s) { note('📊 No sheet yet — open 📊 Sheets and start typing.', true); return; }
+  const csv = shToCSV(s);
+  copyText(csv).then((ok) => {
+    note(ok
+      ? '⧉ ' + s.name + ' exported — ' + csv.length.toLocaleString() +
+        ' characters of CSV on the clipboard (computed values; the formulas stay in the sheet).'
+      : '⧉ The browser refused clipboard access — the export did not happen.', !ok);
+  });
+}
+
+async function shDownload(s) {
+  const csv = shToCSV(s);
+  const fname = (s.name.replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '_') || 'sheet') + '.csv';
+  await dlsReady;
+  if (dls) {
+    /* The artifact viewer's save surface: the viewer sees the filename
+       and size and confirms — a save is never silent, and a "no" is an
+       answer, not an error. */
+    try {
+      await dls.save({ filename: fname, data: csv });
+      note('⬇ ' + fname + ' saved — Excel, Google Sheets and LibreOffice all open it. ' +
+           'The formulas stay in the sheet; the file carries computed values.');
+    } catch (e) {
+      const code = (e && e.code) || 'unavailable';
+      if (code === 'declined') note('⬇ Save declined — nothing was written.');
+      else if (code === 'rate_limited') note('⬇ A save prompt is already open — try again in a moment.', true);
+      else note('⬇ Saving a file is not available in this view (' + code + ') — ' +
+                '⧉ CSV to the clipboard works everywhere.', true);
+    }
+    return;
+  }
+  /* Outside the artifact viewer (the page opened as a plain file), the
+     classic anchor download still works — try it, and say so honestly. */
+  try {
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = fname;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => { try { URL.revokeObjectURL(a.href); } catch (e) { /* done */ } }, 5000);
+    note('⬇ ' + fname + ' offered for download. If no file appeared, this view ' +
+         'blocks downloads — ⧉ CSV to the clipboard always works.');
+  } catch (e) {
+    note('⬇ The download could not start here — use ⧉ CSV instead.', true);
+  }
+}
+
+function shCommit(addr, raw) {
+  const s = sheets.active();
+  if (!s) return;
+  if ((s.cells[addr] || '') !== String(raw)) sheets.setCell(s, addr, raw);
+  shRefresh();
+}
+
+/* Repaint computed values into the existing inputs — no rebuild, and
+ * the cell being edited is left alone (it is showing its raw source). */
+function shRefresh() {
+  const s = sheets.active();
+  if (!s) return;
+  const out = shEvaluate(s);
+  Object.entries(shInputs).forEach(([addr, inp]) => {
+    if (document.activeElement === inp) return;
+    const res = out[addr];
+    inp.value = shDisplay(res);
+    inp.classList.toggle('numeric', !!res && !res.err && typeof res.v === 'number');
+    inp.classList.toggle('err', !!res && !!res.err);
+    inp.title = res && res.err
+      ? addr + ' — ' + res.err + (s.cells[addr] ? ' · source: ' + s.cells[addr] : '')
+      : (s.cells[addr] && String(s.cells[addr]).charAt(0) === '='
+          ? addr + ' = ' + s.cells[addr] : addr);
+  });
+}
+
+function shRender() {
+  shBadge();
+  const panel = $('sheet-panel');
+  if (!panel || panel.hidden) return;
+  let s = sheets.active();
+  if (!s) s = sheets.create('Sheet 1');
+  panel.innerHTML = '';
+  shInputs = {};
+
+  const bar = kbEl('div', 'sh-bar');
+  const pick = document.createElement('select');
+  pick.setAttribute('aria-label', 'Choose sheet');
+  sheets.data.list.forEach((x) => {
+    const o = document.createElement('option');
+    o.value = x.id;
+    o.textContent = x.name;
+    if (x.id === s.id) o.selected = true;
+    pick.appendChild(o);
+  });
+  pick.addEventListener('change', () => { sheets.setActive(pick.value); shSelected = 'A1'; shRender(); });
+  bar.appendChild(pick);
+  const nameIn = document.createElement('input');
+  nameIn.type = 'text';
+  nameIn.value = s.name;
+  nameIn.style.width = '14ch';
+  nameIn.setAttribute('aria-label', 'Rename this sheet');
+  nameIn.title = 'Sheet name — edit and press Enter to rename.';
+  nameIn.addEventListener('change', () => { sheets.rename(s.id, nameIn.value); shRender(); });
+  bar.appendChild(nameIn);
+  bar.appendChild(kbBtn('＋ Sheet', () => { sheets.create(); shSelected = 'A1'; shRender(); }));
+  bar.appendChild(kbBtn('＋ Row', () => {
+    if (!sheets.addRow(s)) note('📊 Row cap reached (' + sheets.MAX_ROWS + ') — a personal sheet, not a data warehouse.', true);
+    shRender();
+  }));
+  bar.appendChild(kbBtn('＋ Column', () => {
+    if (!sheets.addCol(s)) note('📊 Column cap reached (Z) — the grid shares the KB\'s A–Z grammar.', true);
+    shRender();
+  }));
+  bar.appendChild(kbBtn('⧉ CSV', shExportCSV));
+  bar.appendChild(kbBtn('⬇ .csv', () => shDownload(s)));
+  bar.appendChild(kbBtn('📋 Import', () => { shImportOpen = !shImportOpen; shRender(); }));
+  bar.appendChild(kbBtn('Delete sheet', () => {
+    const gone = s.name;
+    sheets.remove(s.id);
+    note('📊 Sheet deleted: ' + gone + '.');
+    shSelected = 'A1';
+    shRender();
+  }));
+  panel.appendChild(bar);
+
+  if (shImportOpen) {
+    const imp = kbEl('div', 'kb-form');
+    imp.innerHTML =
+      '<label for="sh-import-text">Paste rows — CSV, or tab-separated straight from Google Sheets / Excel. ' +
+      'Importing fills this sheet from A1 and replaces what is in it.</label>' +
+      '<textarea id="sh-import-text"></textarea>';
+    const r = kbEl('div', 'kb-row');
+    r.appendChild(kbBtn('Import into this sheet', () => {
+      const grid = shParseCSV($('sh-import-text').value);
+      if (!grid.length) { note('📊 Nothing to import — paste rows first.', true); return; }
+      const res = sheets.importGrid(s, grid);
+      note('📊 Imported ' + res.cells + ' cell(s) into ' + s.name +
+           (res.clipped ? ' — clipped at ' + sheets.MAX_COLS + ' columns × ' + sheets.MAX_ROWS + ' rows.' : '.'));
+      shImportOpen = false;
+      shRender();
+    }));
+    imp.appendChild(r);
+    panel.appendChild(imp);
+  }
+
+  const fx = kbEl('div', 'sh-fx');
+  const addrEl = kbEl('span', 'sh-addr');
+  addrEl.id = 'sh-addr';
+  addrEl.textContent = shSelected;
+  fx.appendChild(addrEl);
+  const fxIn = document.createElement('input');
+  fxIn.id = 'sh-fx-in';
+  fxIn.type = 'text';
+  fxIn.setAttribute('aria-label', 'Formula bar — edits the selected cell');
+  fxIn.placeholder = 'Selected cell — a number, text, or a formula starting with =';
+  fxIn.value = s.cells[shSelected] || '';
+  fxIn.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      shCommit(shSelected, fxIn.value);
+      const inp = shInputs[shSelected];
+      if (inp) inp.focus();
+    }
+  });
+  fxIn.addEventListener('change', () => shCommit(shSelected, fxIn.value));
+  fx.appendChild(fxIn);
+  panel.appendChild(fx);
+
+  const table = document.createElement('table');
+  table.className = 'sh-grid';
+  const thead = document.createElement('thead');
+  const hr = document.createElement('tr');
+  hr.appendChild(kbEl('th', 'rowh', ''));
+  for (let c = 0; c < s.cols; c += 1) hr.appendChild(kbEl('th', '', esc(shColLetter(c))));
+  thead.appendChild(hr);
+  table.appendChild(thead);
+  const tbody = document.createElement('tbody');
+  for (let r = 0; r < s.rows; r += 1) {
+    const tr = document.createElement('tr');
+    tr.appendChild(kbEl('th', 'rowh', String(r + 1)));
+    for (let c = 0; c < s.cols; c += 1) {
+      const addr = shColLetter(c) + (r + 1);
+      const td = document.createElement('td');
+      const inp = document.createElement('input');
+      inp.type = 'text';
+      inp.setAttribute('aria-label', 'Cell ' + addr);
+      inp.addEventListener('focus', () => {
+        shSelected = addr;
+        addrEl.textContent = addr;
+        const raw = s.cells[addr] || '';
+        inp.value = raw;              // edit the SOURCE, see the value on blur
+        inp.classList.remove('numeric', 'err');
+        fxIn.value = raw;
+      });
+      inp.addEventListener('input', () => { fxIn.value = inp.value; });
+      inp.addEventListener('blur', () => shCommit(addr, inp.value));
+      inp.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          const below = shInputs[shColLetter(c) + (r + 2)];
+          if (below) below.focus(); else inp.blur();
+        } else if (e.key === 'Escape') {
+          inp.value = s.cells[addr] || '';
+          fxIn.value = inp.value;
+        }
+      });
+      shInputs[addr] = inp;
+      td.appendChild(inp);
+      tr.appendChild(td);
+    }
+    tbody.appendChild(tr);
+  }
+  table.appendChild(tbody);
+  panel.appendChild(table);
+
+  const hint = kbEl('div', 'sh-hint',
+    'Formulas start with <code>=</code> — try <code>=SUM(A1:A5)</code>, ' +
+    '<code>=AVERAGE(B1:B10)</code>, <code>=A1*1.0825</code>, <code>=ROUND(C3, 2)</code>. ' +
+    'Enter moves down, Tab moves right, Escape restores a cell. ' +
+    'Errors are named, never silent: #ERROR, #VALUE, #REF, #CYCLE, #DIV/0.');
+  panel.appendChild(hint);
+
+  shRefresh();
+}
+
+function shToggle(open) {
+  shOpenState = (open === undefined) ? !shOpenState : !!open;
+  const panel = $('sheet-panel');
+  panel.hidden = !shOpenState;
+  $('sheet-open').setAttribute('aria-expanded', shOpenState ? 'true' : 'false');
+  if (shOpenState) shRender(); else shBadge();
+}
+
+/* Tools the pod assistant may call for the sheets — same contract as
+ * the KB tools: each executes HERE, on this browser's stores, and
+ * pushes a plain-language record so the turn reports what was done. */
+function sheetAssistantTools(actions) {
+  return [
+    { name: 'readSheet',
+      description: "Read one of the user's Strata Sheets (small spreadsheets in this console). Returns the sheet's computed values as CSV, its raw formulas by cell, and the list of all sheet names. Omit name for the active sheet. Call it before answering any question about the user's sheet data.",
+      inputSchema: { type: 'object',
+        properties: { name: { type: 'string', description: 'sheet name; omit for the active sheet' } } },
+      execute: (a) => {
+        const names = sheets.data.list.map((x) => x.name);
+        const s = (a && a.name) ? sheets.byName(a.name) : sheets.active();
+        if (!s) return { sheets: names, note: names.length ? 'No sheet by that name.' : 'No sheets exist yet.' };
+        const formulas = {};
+        Object.entries(s.cells).forEach(([k, v]) => {
+          if (String(v).charAt(0) === '=') formulas[k] = v;
+        });
+        return { name: s.name, rows: s.rows, cols: s.cols, csv: shToCSV(s),
+                 formulas: formulas, sheets: names };
+      } },
+    { name: 'setSheetCells',
+      description: "Write cells into one of the user's Strata Sheets. cells maps cell addresses (A1–Z200) to string values; a value starting with '=' is a formula (arithmetic, cell refs, ranges like A1:A5 inside functions, and SUM, AVERAGE, COUNT, MIN, MAX, ROUND, ABS). An empty string clears a cell. Omit name for the active sheet; naming a sheet that doesn't exist creates it. Write only when the user asks or clearly wants the sheet changed.",
+      inputSchema: { type: 'object',
+        properties: {
+          name: { type: 'string', description: 'sheet name; omit for the active sheet' },
+          cells: { type: 'object',
+            description: 'map of cell address to value, e.g. {"A1":"Rent","B1":"1200","B4":"=SUM(B1:B3)"}',
+            additionalProperties: { type: 'string' } },
+        },
+        required: ['cells'] },
+      execute: (a) => {
+        let s = (a && a.name) ? sheets.byName(a.name) : sheets.active();
+        let created = false;
+        if (!s) { s = sheets.create((a && a.name) || undefined); created = true; }
+        let wrote = 0;
+        const bad = [];
+        Object.entries((a && a.cells) || {}).forEach(([k, v]) => {
+          const ref = shParseRef(String(k).toUpperCase().trim());
+          if (!ref || ref.r >= sheets.MAX_ROWS) { bad.push(String(k)); return; }
+          sheets.growTo(s, ref.r + 1, ref.c + 1);
+          sheets.setCell(s, ref.addr, String(v === undefined || v === null ? '' : v));
+          wrote += 1;
+        });
+        if (!wrote) throw new Error('No valid cell addresses — use A1–Z' + sheets.MAX_ROWS + '.');
+        actions.push((created ? 'new sheet ' : '') + '"' + s.name + '" — ' + wrote + ' cell(s)');
+        shRender();
+        return { ok: true, sheet: s.name, wrote: wrote, created: created,
+                 skipped: bad, csv: shToCSV(s) };
+      } },
+  ];
+}
+
 /* ---------- sending ---------------------------------------------------- */
 
 async function send() {
@@ -2094,6 +4207,7 @@ async function send() {
   turn('You', markdown(text), 'me');
   box.value = '';
   box.style.height = 'auto';
+  kbdSeqUpdate();   // the sequence bar mirrors the (now empty) box
 
   /* A slash command is an instruction to the console, not a question for
      the assistant. Same grammar as the desktop, one copy of it. */
@@ -2119,16 +4233,35 @@ async function send() {
   /* The pipeline runs whether or not the pod assistant answers: its
      structured output is the fallback and the telemetry. */
   const d = classifyInput(text);
+  avSetGlyphs(d.glyphs);   // the message's operator tokens light the avatar
   const routePath = route(d);
   let context = retrieveContext();
-  const tone = TONES[zone] || TONES.GREEN;
-  const template = synthesizeTemplate(d, routePath, context, tone, zone);
+
+  /* Snapshot-at-dispatch (H6): freeze this turn's configuration NOW.
+     Everything downstream — prompt conditioning, matrix lookups, the
+     model tier, the template, the thread record, the response header —
+     reads the frozen copy, so a control flipped while the answer
+     streams cannot rewrite a turn already in flight. The turn clock
+     stamps it into a total order that survives reloads. */
+  turnClock += 1;
+  store.setState('turn_clock', String(turnClock));
+  const turnSeq = turnClock;
+  const turnZone = zone;
+  const turnOverlay = overlayMode;
+  const turnLoad = cogLoad;
+
+  const tone = TONES[turnZone] || TONES.GREEN;
+  const template = synthesizeTemplate(d, routePath, context, tone, turnZone);
 
   /* Grounding is gathered by the page, never by the model: the attached
      document, and — when the box is ticked — the viewer's Google Drive. */
   let extra = attachmentContext(text, attachment).slice(0, 6000);
   const used = [];
   if (attachment && extra) used.push('📎 ' + attachment.name);
+  /* The image lane: an attached image bypasses retrieval entirely and
+     rides with the pod call itself — the assistant looks at the pixels,
+     not at ranked passages. Whether it can go is settled after podReady. */
+  const imageAtt = (attachment && attachment.image) ? attachment : null;
 
   /* The knowledge base is the one LOCAL source: no bridge, no cloud
      call — searched synchronously, before any connector is consulted. */
@@ -2152,8 +4285,16 @@ async function send() {
      hang, so the placeholder counts out loud — and the pod assistant
      streams, which is the strongest evidence of progress there is. */
   await podReady;
+  await capsReady;
   const firstCall = !!pod && !podTried;
-  let base = (pod ? busyLabel(!!extra, firstCall) : 'template engine').replace(/…$/, '');
+  const sendImage = !!(imageAtt && pod && imageCaps);
+  if (imageAtt && !sendImage) {
+    note('🖼 The image cannot be examined in this view — the ' +
+         (pod ? 'view does not allow sending images' : 'template engine has no eyes') +
+         ' — answering from text only.', true);
+  }
+  if (sendImage) used.push('🖼 ' + imageAtt.name);
+  let base = (pod ? busyLabel(!!extra, firstCall, sendImage) : 'template engine').replace(/…$/, '');
   $('status').textContent = base + '…';
 
   const startedAt = Date.now();
@@ -2185,7 +4326,7 @@ async function send() {
       } catch (e) {
         note('☁ ' + connectorErrorNote('Google Drive', e), true);
       }
-      base = (pod ? busyLabel(true, firstCall) : 'template engine').replace(/…$/, '');
+      base = (pod ? busyLabel(true, firstCall, sendImage) : 'template engine').replace(/…$/, '');
       tick();
     }
   }
@@ -2207,7 +4348,7 @@ async function send() {
       } catch (e) {
         note('🌐 ' + connectorErrorNote('Exa', e), true);
       }
-      base = (pod ? busyLabel(true, firstCall) : 'template engine').replace(/…$/, '');
+      base = (pod ? busyLabel(true, firstCall, sendImage) : 'template engine').replace(/…$/, '');
       tick();
     }
   }
@@ -2217,7 +4358,8 @@ async function send() {
 
   let reply = null;
   let streamed = false;
-  const kbActions = [];   // what the assistant wrote to the KB this turn
+  const kbActions = [];      // what the assistant wrote to the KB this turn
+  const sheetActions = [];   // what the assistant wrote to the sheets this turn
 
   try {
     if (pod) {
@@ -2225,33 +4367,45 @@ async function send() {
       busyCtl = new AbortController();
       /* Standing instructions lead; the recent conversation rides in
          the middle as real turns; the new message closes the list. */
+      const imageLine = sendImage
+        ? "\nThe user's attached image '" + imageAtt.name + "' is provided " +
+          'with the newest message — look at it directly and answer from ' +
+          'what you see. It stays attached until the user removes it.'
+        : '';
       const turns = [
-        { role: 'user', content: podRules(tone, d.glyphMeanings, fullContext, !!extra) },
+        { role: 'user', content: podRules(tone, d.glyphMeanings, fullContext, !!extra,
+                                          turnZone, turnOverlay, turnLoad) + imageLine },
         ...store.recallTurns(),
         { role: 'user', content: text },
       ];
       try {
-        const r = await pod(turns, {
+        const opts = {
           cache: false,
           signal: busyCtl.signal,
-          modelTier: ZONE_TIER[zone] || 'default',
+          modelTier: ZONE_TIER[turnZone] || 'default',
           /* The KB tools ride along on every call: search, plus the
              writes — createCard, saveNote, addJournalEntry,
              addGlossaryTerm. Each executes in this page, on this
              browser's stores, and is logged and reported. */
-          tools: kbAssistantTools(kbActions),
+          tools: kbAssistantTools(kbActions).concat(sheetAssistantTools(sheetActions)),
           onText: ({ text: t }) => {
             streamed = true;
             pending.classList.add('streaming');
             pendingBody.innerHTML = markdown(t);
             log.scrollTop = log.scrollHeight;
           },
-        });
+        };
+        /* The image lane joins here: the attachment's pixels ride with
+           this call. Re-sent each turn while attached — the assistant
+           has no memory between calls, so the attachment IS the memory. */
+        if (sendImage) opts.images = [imageAtt.image];
+        const r = await pod(turns, opts);
         reply = r.text;
         if (r.truncated) note('The answer hit the length limit — ask for less at a time.', true);
       } catch (e) {
         const code = (e && e.code) || 'upstream_error';
         podLastError = code;
+        if (code !== 'cancelled') avErrorAt = Date.now();   // the avatar shows it
         if (code === 'cancelled') {
           reply = (e && e.text) || null;
           note(reply ? '■ Stopped — the partial answer is kept.' : '■ Stopped.');
@@ -2260,6 +4414,15 @@ async function send() {
           pod = null;
           note('🧩 The pod assistant is not available in this view (' + code +
                ') — template mode from here on.', true);
+        } else if (code === 'images_unavailable') {
+          imageCaps = null;
+          reply = (e && e.text) || null;
+          note('🖼 This view cannot send images after all — Remove the image ' +
+               'and ask again in text.', true);
+        } else if (code === 'image_rejected') {
+          reply = (e && e.text) || null;
+          note('🖼 The image was not accepted — wrong type, undecodable, or ' +
+               'too large. Try a different file, or Remove it.', true);
         } else if (code === 'refused') {
           reply = null;   // any partial is withdrawn; do not keep it
           note('The pod assistant declined this input — the template engine answered instead.', true);
@@ -2285,6 +4448,19 @@ async function send() {
 
     pending.classList.remove('streaming');
     pendingBody.innerHTML = markdown(reply);
+    /* Mode-aware response header (v2): every answer says when it came,
+       under which mode and overlay, and at what target load. */
+    const rhead = document.createElement('p');
+    rhead.className = 'used';
+    rhead.textContent = '#' + turnSeq + ' · ' + new Date().toLocaleTimeString() +
+      ' · ' + turnZone +
+      (turnOverlay !== 'off' ? ' · ' + OVERLAYS[turnOverlay].label : '') +
+      ' · load ' + turnLoad + '/10';
+    rhead.title = 'This turn\'s FROZEN configuration — captured when you pressed ' +
+      'Send, so it names the settings that actually shaped this answer, even ' +
+      'if you changed them while it streamed. # is the turn\'s place in the ' +
+      'session\'s total order.';
+    pending.insertBefore(rhead, pendingBody);
     if (used.length) {
       const src = document.createElement('p');
       src.className = 'used';
@@ -2295,10 +4471,27 @@ async function send() {
       note('🗂 Knowledge base updated — ' + kbActions.join(' · '));
       kbRender();
     }
+    if (sheetActions.length) {
+      note('📊 Sheets updated — ' + sheetActions.join(' · ') + ' (📊 Sheets shows it).');
+      shBadge();
+    }
+    /* Matrix escalations arrive as ONE quiet suggestion, never a switch —
+       judged against the turn's frozen overlay, not whatever it is now. */
+    if (turnOverlay !== 'off') {
+      for (const g of d.glyphs) {
+        const b = glyphModeBehavior(g, turnOverlay);
+        if (b && b.suggest && b.suggest !== turnOverlay && OVERLAYS[b.suggest]) {
+          note(g + ' with ' + OVERLAYS[turnOverlay].label + ' often pairs with ' +
+               OVERLAYS[b.suggest].label + ' — /overlay ' + b.suggest +
+               ' if you want it. Your call, never automatic.');
+          break;
+        }
+      }
+    }
     lastReply = reply;
     lastSpeakable = speakable(reply);
     lastTurn = pending;
-    store.addThread(text, zone);
+    store.addThread(text, turnZone);
     store.addChatTurn('user', text);
     store.addChatTurn('assistant', reply);
     $('status').textContent = getStatus();
@@ -2321,6 +4514,33 @@ const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 let rec = null;
 let recFinal = '';
 
+/* A cross-origin frame only gets the microphone when its host DELEGATES
+ * it (an `allow="microphone"` on the iframe). Where the host does not,
+ * the browser hard-blocks the mic — no permission prompt can even
+ * appear, so asking would fail silently. The page can read that verdict
+ * itself from its own permissions policy, so the Speak button can say
+ * why up front — the same stays-visible-and-says-why pattern the
+ * Whisper tier control uses — instead of failing on the first click. */
+function micBlockedReason() {
+  if (!SR) return 'no-engine';
+  try {
+    const pp = document.permissionsPolicy || document.featurePolicy;
+    if (pp && typeof pp.allowsFeature === 'function' &&
+        !pp.allowsFeature('microphone')) {
+      return 'frame-blocked';
+    }
+  } catch (e) { /* cannot tell here — let the click find out */ }
+  return null;
+}
+
+const MIC_FRAME_NOTE =
+  '🎤 Dictation is blocked in this view: the page is embedded in a frame ' +
+  'that does not delegate microphone access, so the browser refuses the ' +
+  'mic before any permission prompt can appear. Not a fault in the ' +
+  'console — the same code dictates fine where the page runs top-level, ' +
+  'and the desktop console is unaffected. Typing and 🔊 read-aloud both ' +
+  'work here.';
+
 function micIdle() {
   const b = $('mic');
   recording = false;
@@ -2333,6 +4553,10 @@ function toggleMic() {
   if (!SR) {
     note('This browser has no speech recognition engine — dictation runs in ' +
          'Chrome and Edge, or in the desktop console.', true);
+    return;
+  }
+  if (!recording && micBlockedReason() === 'frame-blocked') {
+    note(MIC_FRAME_NOTE, true);
     return;
   }
   if (!recording) {
@@ -2349,8 +4573,7 @@ function toggleMic() {
       rec.onerror = (e) => {
         micIdle();
         if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
-          note('The browser refused microphone access in this frame — dictation ' +
-               'needs it. The desktop console is unaffected.', true);
+          note(MIC_FRAME_NOTE, true);
         } else if (e.error === 'no-speech') {
           note('No speech was heard.');
         } else {
@@ -2408,14 +4631,50 @@ function showAttachment(label) {
 
 const TEXT_EXTS = ['.txt', '.md', '.markdown', '.csv', '.html', '.htm', '.json', '.log'];
 
+const IMAGE_EXTS = ['.png', '.jpg', '.jpeg', '.webp', '.gif'];
+
+function handleImageFile(file) {
+  const name = file.name;
+  if (!imageCaps) {
+    note(`🖼 Couldn't attach ${name} — this view can't send images to the ` +
+         'pod assistant' +
+         (pod === null ? ' (the assistant itself is not available here)' : '') +
+         '. Text attachments still work.', true);
+    return;
+  }
+  if (file.type && imageCaps.mediaTypes && imageCaps.mediaTypes.length &&
+      !imageCaps.mediaTypes.includes(file.type)) {
+    note(`🖼 ${name} is a type this view doesn't accept — it takes ` +
+         imageCaps.mediaTypes.join(', ') + '.', true);
+    return;
+  }
+  if (imageCaps.maxInputBytes && file.size > imageCaps.maxInputBytes) {
+    const mb = Math.round(imageCaps.maxInputBytes / 1048576);
+    note(`🖼 ${name} is too large — this view accepts images up to about ${mb} MB.`, true);
+    return;
+  }
+  attachment = { name: name, image: file };
+  const sizeKB = Math.max(1, Math.round(file.size / 1024));
+  showAttachment(`🖼 ${name} (${sizeKB} KB) — attached; Remove detaches it`);
+  note(`🖼 Attached ${name}. Ask me about it — the pod assistant sees the ` +
+       'image itself with each message while it stays attached. It rides ' +
+       'beside the text, not through the retrieval kernel, and Remove ' +
+       'detaches it.');
+}
+
 function handleFile(file) {
   if (!file) return;
   const name = file.name;
   const ext = (name.lastIndexOf('.') >= 0 ? name.slice(name.lastIndexOf('.')) : '').toLowerCase();
+  if (/^image\//.test(file.type || '') || IMAGE_EXTS.includes(ext)) {
+    handleImageFile(file);
+    return;
+  }
   if (!TEXT_EXTS.includes(ext)) {
     note(`📎 Couldn't read ${name} — the browser build reads text formats ` +
-         `(${TEXT_EXTS.join(' ')}). .docx/.pdf/.xlsx extraction is a ` +
-         'desktop-console feature.', true);
+         `(${TEXT_EXTS.join(' ')})` +
+         (imageCaps ? ' and images (PNG, JPEG, WebP, GIF)' : '') +
+         '. .docx/.pdf/.xlsx extraction is a desktop-console feature.', true);
     return;
   }
   const reader = new FileReader();
@@ -2473,12 +4732,26 @@ function bootMessage(podFn) {
       'document** — and I will read those before answering, citing what I ' +
       'read. Google Sheets come through ☁. Saying "search the web for …" ' +
       'works without touching the box.\n\n' +
+      (imageCaps
+        ? 'Images work here too: attach a **PNG, JPEG, WebP or GIF** with 📎 ' +
+          'and I can examine the image itself — new in the web build.\n\n'
+        : '') +
       'The **🗂 Knowledge Base** is new — the Study Workstation, resident ' +
       'in the console: a Library, note cards, Notes, a Journal and a ' +
       'Glossary, kept in this browser. With **🗂 Knowledge** ticked I read ' +
       'them before answering — and I can write to them too: ask me to ' +
       'capture a card, save a note, journal the session, or define a term. ' +
       '`/kb` shows what\'s stored.\n\n' +
+      'The **⌨ glyph keyboard** is new — press **Alt+K** or the ⌨ Glyphs ' +
+      'button beside the message box: eighteen codex keys in two banks, ' +
+      'the grammar operators, and a sequence bar that translates your ' +
+      'chain as you build it. Alt+1–0 type the core ten from anywhere; ' +
+      '`/lexicon` shows what each glyph tells me.\n\n' +
+      'And **📊 Sheets** is a working spreadsheet in the console: cells ' +
+      'A1–Z200, formulas starting with = (SUM, AVERAGE, COUNT, MIN, MAX, ' +
+      'ROUND, ABS), CSV import and export. Ask me to read a sheet, total a ' +
+      'column, or build one for you — I write real formulas, so the sheet ' +
+      'stays live when you edit it. `/sheet` opens it.\n\n' +
       'I keep the recent conversation in recall — even across a reload — so you ' +
       'can ask me about something we said and I can call it back. **Clear** ' +
       'archives it out of recall; nothing is deleted.\n\n' +
@@ -2501,6 +4774,19 @@ function start(hotData) {
   document.documentElement.dataset.font = font;
   $('font').value = font;
   applySize(size);
+  /* Omega-1 controls: the overlay list is built from OVERLAYS so the
+     dropdown and /overlay can never disagree. */
+  const ovSel = $('overlay');
+  Object.entries(OVERLAYS).forEach(([key, o]) => {
+    const opt = document.createElement('option');
+    opt.value = key;
+    opt.textContent = o.label;
+    ovSel.appendChild(opt);
+  });
+  ovSel.value = overlayMode;
+  $('cogload').value = cogLoad;
+  $('cogload-out').value = cogLoad + '/10';
+  if (overlayMode === 'crisis_triage') crisisEnter(true);
   $('autoread').checked = store.getState('autoread', '0') === '1';
   $('src-drive').checked = store.getState('src_drive', '0') === '1';
   $('src-web').checked = store.getState('src_web', '0') === '1';
@@ -2508,9 +4794,32 @@ function start(hotData) {
      nothing in it matches — the safest kind of grounding. */
   $('src-kb').checked = store.getState('src_kb', '1') === '1';
   kbBadge();
+  shBadge();
+  const lifecycle = kb.autoArchive(30);
+  if (lifecycle.decayed) {
+    note('🗂 ' + lifecycle.decayed + ' 🎯 Target card(s) older than 7 days softened to 🌀 Iterate ' +
+         '— recorded in each card\'s glyph history.');
+  }
+  if (lifecycle.archived) {
+    note('🗂 ' + lifecycle.archived + ' card(s) older than 30 days moved to the RED zone ' +
+         '(🧊 Golden Source cards are exempt). Nothing was deleted — change a ' +
+         'card\'s zone to bring it back.');
+  }
   setZone(zone);
   $('status').textContent = getStatus();
   showHeap();
+
+  /* Speak stays visible when the frame blocks the mic — dimmed, with
+     the reason on hover and on click — the delta documented in the UI,
+     exactly as the Whisper tier control does it. */
+  const micReason = micBlockedReason();
+  if (micReason) {
+    const mb = $('mic');
+    mb.style.opacity = '.55';
+    mb.title = micReason === 'no-engine'
+      ? 'This browser has no speech recognition engine — dictation runs in Chrome and Edge, or in the desktop console.'
+      : 'Blocked by the hosting frame: it does not delegate microphone access, so the browser refuses the mic here. The desktop console is unaffected.';
+  }
 
   if (hotData && hotData.html) {
     /* A republish reached an open view: keep the conversation on screen. */
@@ -2521,7 +4830,7 @@ function start(hotData) {
   }
 
   const boot = turn('Strata', markdown('Web build online — checking for the **pod assistant**…'));
-  podReady.then((fn) => {
+  Promise.all([podReady, capsReady]).then(([fn]) => {
     boot.querySelector('.body').innerHTML = markdown(bootMessage(fn));
     lastTurn = boot;
     lastSpeakable = speakable(bootMessage(fn));
@@ -2535,7 +4844,7 @@ function start(hotData) {
 $('composer').addEventListener('submit', (e) => { e.preventDefault(); send(); });
 
 const box = $('msg');
-box.addEventListener('input', () => grow(box));
+box.addEventListener('input', () => { grow(box); kbdSeqUpdate(); });
 box.addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
 });
@@ -2550,13 +4859,19 @@ $('font').addEventListener('change', (e) => {
 
 $('mic').addEventListener('click', toggleMic);
 
-/* The desktop-only sources answer honestly when reached for. */
-$('lbl-web').addEventListener('click', (e) => {
-  e.preventDefault();
-  note('🌐 Web search is a desktop-console feature. This page opens no ' +
-       'connection except the pod assistant itself — by design, its network ' +
-       'is otherwise closed.');
+$('overlay').addEventListener('change', (e) => {
+  setOverlay(e.target.value);
+  $('status').textContent = getStatus();
 });
+
+$('cogload').addEventListener('input', (e) => {
+  const v = parseInt(e.target.value, 10);
+  cogLoad = (v >= 1 && v <= 10) ? v : 5;
+  $('cogload-out').value = cogLoad + '/10';
+  store.setState('cog_load', String(cogLoad));
+  kbdRender();   // the keyboard's load dimming follows the dial
+});
+
 $('src-web').addEventListener('change', async (e) => {
   store.setState('src_web', e.target.checked ? '1' : '0');
   if (!e.target.checked) {
@@ -2601,6 +4916,12 @@ $('detach').addEventListener('click', () => {
   note('📎 Attachment removed.');
 });
 
+$('avatar').addEventListener('click', () => avToggle());
+
+$('kbd-open').addEventListener('click', () => kbdToggle());
+
+$('sheet-open').addEventListener('click', () => shToggle());
+
 /* Knowledge base wiring — the drawer, the source box, the library file. */
 $('kb-open').addEventListener('click', () => kbToggle());
 $('src-kb').addEventListener('change', (e) => {
@@ -2614,6 +4935,10 @@ $('src-kb').addEventListener('change', (e) => {
 $('kb-file').addEventListener('change', (e) => {
   kbHandleFile(e.target.files && e.target.files[0]);
   e.target.value = '';
+});
+$('kb-go').addEventListener('click', () => kbDoSearch($('kb-q').value));
+$('kb-q').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') { e.preventDefault(); kbDoSearch(e.target.value); }
 });
 
 $('read').addEventListener('click', () => {
@@ -2645,6 +4970,7 @@ $('help').addEventListener('click', () => {
   lastTurn = turn('Strata', markdown([
     '### Keyboard',
     '- **Tab** moves through every control — all of them, natively.',
+    '- **Alt+K** opens the ⌨ glyph keyboard; **Alt+1–0** type the core ten glyphs from anywhere.',
     '- **Enter** sends. **Shift+Enter** starts a new line.',
     '- **Ctrl+L** clears the window and what the assistant recalls.',
     '- **Escape** stops reading aloud — and stops the pod assistant mid-answer.',
@@ -2672,6 +4998,13 @@ document.querySelectorAll('.mode').forEach((b) => {
 });
 
 document.addEventListener('keydown', (e) => {
+  /* Alt-chords for the keyboard — Alt, not bare letters, because a
+     single-letter hotkey would fire while typing in a chat-first page. */
+  if (e.altKey && !e.ctrlKey && !e.metaKey) {
+    if (e.code === 'KeyK') { e.preventDefault(); kbdToggle(); return; }
+    const m = /^Digit(\d)$/.exec(e.code || '');
+    if (m && KBD_ALT_DIGITS[m[1]]) { e.preventDefault(); kbdPress(KBD_ALT_DIGITS[m[1]]); return; }
+  }
   if (e.ctrlKey && e.key.toLowerCase() === 'l') {
     e.preventDefault();
     $('clear').click();

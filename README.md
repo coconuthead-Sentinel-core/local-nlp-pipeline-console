@@ -282,18 +282,65 @@ graceful fallbacks. Environment overrides: `STRATA_NUM_CTX`,
 
 ## Browser build
 
-Strata Console has a companion browser build — a single-page snapshot
-published as a claude.ai Artifact. It has no server and no build step:
-open it in a browser and it runs. The desktop app documented above is
-the primary product; the browser build is where lighter ideas are tried
-before they earn the desktop's RAM budget and interpreter rule.
+Strata Console is one project with **two build targets**, and they are
+not a draft and a product. Both are real; they answer to different
+engines, and that difference decides what each one can ever do.
+
+| | **Desktop build** | **Browser build** |
+| --- | --- | --- |
+| Runs | Windows 11, native WebView2 window | any browser, as a claude.ai Artifact |
+| Engine | llama3.2:3b on this laptop, loopback only | pod assistant — Claude, asked at runtime with the viewer's permission |
+| Store | SQLite on disk | `localStorage` in that one browser |
+| Needs | Ollama, a 2.3 GB model, 8 GB of RAM | nothing installed |
+| Primary for | working offline, with no account and no cloud call | reach, images, connectors, and anything the 3B model is too small for |
+
+**They are deliberately not in sync, and the browser build is ahead.**
+Between 2026-09-18 and 2026-09-21 it gained images, the Avatar
+Visualizer, Omega-1 (glyph legend v2, five behavioral overlays, a load
+dial), the export bridge, the H5 interaction matrix, the glyph keyboard
+and Strata Sheets — all recorded in
+[CHANGELOG.md](CHANGELOG.md) under *Browser build*. Some of it is
+portable to the desktop and some of it is not, and the dividing line is
+the engine, not effort:
+
+- **Cannot be ported.** Vision — llama3.2:3b has no image input at all.
+  The 🌐 Exa and ☁ Google Drive sources, which are claude.ai connectors
+  belonging to the viewer's account, not endpoints a local app may call.
+  Anything leaning on a frontier model's judgement: the 45-cell
+  interaction matrix conditions a model that can act on nine
+  simultaneous constraints, and a 3B model cannot.
+- **Portable, and not yet ported.** The Knowledge Base stores, the glyph
+  keyboard, Strata Sheets, the glyph legend v2 and card lifecycle, the
+  load dial, `/find`, `/export`. These are application-layer work — the
+  part this project has always claimed as its value — and nothing about
+  the local engine prevents them.
+- **Already shared.** The five pipeline stages, the operating modes, the
+  slash-command grammar, the retrieval ranking, the clear floor, and the
+  measured WCAG colour values: the browser build's palette is the same
+  numbers `strata_tools/theme.py` committed to, not a second set chosen
+  by eye.
+
+That shared half is why both builds live in **one repository**. They
+share a scope document, a defect ledger, an accessibility plan and a
+colour system; splitting them would duplicate all four and leave the
+port relationship — the thing actually worth reading — recorded nowhere.
+One product, two configuration items, one baseline.
 
 The on-repo copy is [`strata_console_browser.html`](strata_console_browser.html)
-at the repository root — a byte-for-byte snapshot filed as the permanent
-reference alongside the Artifact link and the Google Docs / OneDrive
-record. Integrity is pinned in the shipping notes (SHA256 recorded in
-CHANGELOG); a diff against that hash tells you whether this file matches
-the published Artifact.
+at the repository root — a byte-for-byte snapshot of the published page
+as served, filed as the permanent reference alongside the Artifact link
+and the Google Docs / OneDrive record. Integrity is pinned in the
+shipping notes (byte count and SHA256 in
+[CHANGELOG.md](CHANGELOG.md)); a diff against that hash tells you
+whether this file matches the Artifact **as of the date the CHANGELOG
+records**, which is the only thing a snapshot can honestly claim. It
+says nothing about the live Artifact today — that page is edited where
+it is published, so a snapshot is a dated reference, never a mirror.
+Re-file it when the browser build changes, and date the entry.
+
+The console documents its own delta: `/port` in the browser build lists
+what carried over from the desktop, what was adapted, what was upgraded,
+and what was refused with the reasoning kept.
 
 The first browser-side feature scoped through the documentation gate is
 the **Prompt Library** — automatic per-exchange capture, keyword
