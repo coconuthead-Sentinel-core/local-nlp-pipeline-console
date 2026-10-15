@@ -29,6 +29,13 @@
 - Capability transferred from Sentinel Forge per
   [`TRANSFER_CATALOG.md`](TRANSFER_CATALOG.md), phase by phase, each
   port owing tests in this repository before its UI is wired.
+- **Work-session instrumentation** (added 2026-10-15, see §6): a focus
+  timer, and an *optional, dismissable* prompt recording the owner's
+  **self-reported** load and working mode at the start and end of a
+  cycle. Standard terms: signal-contingent **experience sampling**
+  producing **intensive longitudinal data** for an **N-of-1** design.
+  Admitted narrowly — see the carve-out in §2, which this does not
+  widen.
 
 ## 2. Out of scope (explicit)
 
@@ -36,6 +43,24 @@
   repetition, gamification, finance, bills, and appointment reminders
   stay in Sentinel Forge. This is a standing decision, not a backlog
   item.
+
+  **Narrow carve-out, 2026-10-15 — work-session instrumentation only.**
+  The focus timer and its self-report admitted in §1 are **measurement,
+  not encouragement**. The line between them is drawn here and is
+  testable:
+
+  | Admitted | Still out of scope |
+  | --- | --- |
+  | Recording a cycle's length and outcome | Streaks, chains, "don't break the chain" |
+  | Recording a self-reported load and mode | Points, badges, levels, rewards |
+  | Charting what was recorded | Targets, quotas, or goals to hit |
+  | Reporting an abandoned cycle as data | Treating an abandoned cycle as a failure |
+  | Reporting what the owner's own data shows | Nudges, streak-saves, or encouragement |
+
+  The system **records and charts. It does not urge.** A feature that
+  rewards the owner for a number going up is gamification and is out,
+  whatever it is called. This carve-out admits one named capability and
+  does not reopen the category.
 - **Cloud services, accounts, or telemetry.** The model runs locally.
   Web search is opt-in per message and degrades gracefully when off.
 - **Multi-user, sync-server, or mobile** versions.
@@ -69,6 +94,14 @@
 - The owner can perform each shipped workflow on his real ~1097x617
   effective display.
 - The worktree, the live install, and GitHub agree at the same commit.
+- **No self-report is presented as a measurement.** The load dial records
+  what the owner *reports*, not what his cognitive load *is*. Cognitive
+  Load Theory has its own instruments and a dial is not one of them;
+  likewise a control labelled with a state name does not detect that
+  state. Any label, chart axis, export column or docstring that implies
+  otherwise is a defect. The honest framing — a self-report, gathered by
+  experience sampling — is what makes the data admissible, and it costs
+  nothing.
 
 ## 4. Lifecycle target
 
@@ -107,3 +140,4 @@
 | 2026-09-01 | DPI awareness declined on measurement; seven donor modules declined as design-changing. | Recorded in `docs/TRANSFER_CATALOG.md` and `docs/FORMER_BUGS.md` NM-002 — decisions, not oversights. |
 | 2026-09-01 | **Two shells → one.** The CustomTkinter console is retired; the HTML/CSS/JS shell is the only shell. §4 amended. | **Owner decision**, asked for directly: "get rid of the tkinter shell… that way there is only one." Gated on parity, not preference — slash commands and the operator token lexicon existed only in the Tk console and were ported and tested (`strata_tools/commands.py`) *before* it was removed. Carrying two front ends meant paying maintenance twice for a comparison that had already concluded. |
 | 2026-09-01 | CustomTkinter dropped from required dependencies; Tk-only kernels (`layout.py`, `window_fit.py`, `selection.py`) and the five CustomTkinter measuring tools removed with the shell they measured. | Consequence of the row above. Design-law rules A and B are **kept but re-scoped** — they can no longer fire on the shipped shell, so `design_laws.py` now says so plainly rather than letting them read as ongoing proof. |
+| 2026-10-15 | **Work-session instrumentation admitted** to §1: a focus timer plus an optional, dismissable self-report of load and working mode. §2's personal-development exclusion gains a narrow carve-out with a testable measurement-versus-encouragement table. §3 gains one acceptance criterion: no self-report may be presented as a measurement. | **Owner decision**, asked for directly and granted on these terms: *"admit work session instrumentation specifically, narrowly, with a reason recorded — use it as a measurement and not as gamification."* The reason: the owner works 12-hour shifts on a 2-on / 2-off / 3-on roster and can only work the project in snatched 15-minute windows. Whether those windows differ from rest-day windows is an answerable question, and answering it requires recording them. The method is standard — signal-contingent experience sampling (Csikszentmihalyi & Larson, 1987) producing intensive longitudinal data for an N-of-1 design — and `hours_slept` is recorded on the owner's instruction so the largest known confound stays visible in the data rather than being argued about afterwards. This admits one named capability; it does not reopen the category. |
