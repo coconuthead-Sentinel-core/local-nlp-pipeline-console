@@ -12,6 +12,71 @@ root cause and the guard.
 
 ## [Unreleased]
 
+### Added — the operator codex and the focus kernel (2026-10-15)
+
+Two pure kernels, both headless, neither wired to any UI. Scope decision
+logged in [`docs/SCOPE.md`](docs/SCOPE.md) §6 before either was written.
+
+- **[`strata_tools/codex.py`](strata_tools/codex.py)** — nineteen
+  operators, each carrying a stable four-letter `code`, a `number` (its
+  address), a `label`, an `icon` name, a `zone`, a `load` range, the
+  pipeline `stage` it conditions, and its model instruction.
+
+  **Identity moved off the glyph.** The ice cube had come to mean three
+  different things across three artefacts — *Logic / Stabilize* in one
+  source document, *Crystallized Memory* in another, and `GOLDEN_SOURCE`
+  in the shipped browser build. Nobody erred; a picture can be re-read,
+  and re-reading leaves no trace. A code cannot drift, because changing
+  one is a visible edit. The icon is now display only and can be replaced
+  on any day without migrating a stored row.
+
+  Emoji are out of every identifier: they render differently per
+  platform, screen-read as their Unicode name ("snake", not "cycle"), and
+  reach a language model carrying their own conventional meaning. A test
+  holds every code, label, icon and instruction to ASCII.
+
+  Codex v2 is **frozen at eighteen** in `CODEX_V2_FROZEN` — superseded,
+  not deleted — and every frozen glyph still resolves, so no stored row
+  becomes unreadable. The cube split into `STAB` (structure) and `GOLD`
+  (canonical); `WAVE` kept the shipped meaning of uncertainty. The
+  governance glyphs are cut and recorded in `RETIRED` with their reasons:
+  they claimed the system validates ethics, balances equity and forgives
+  error, and it does none of those. A test bans that vocabulary from
+  every instruction string.
+
+  Nineteen, not twenty. Twenty was a round number chosen before the
+  concepts were counted.
+
+- **[`strata_tools/focus.py`](strata_tools/focus.py)** — focus cycles and
+  experience sampling. Three tables declared as `SCHEMA`, constructors
+  that refuse bad input by name, and the queries that answer the owner's
+  own question: `cycle_length_report()` and `best_cycle_length()` give the
+  completion rate for every cycle length he has tried.
+
+  What it records is a **self-report**. The column is `reported_load`, not
+  `cognitive_load`, per the acceptance criterion added to `SCOPE.md` §3.
+
+  Rows, not cells: `cycles` is a fact table that grows downward and `days`
+  is a small dimension table, because a fixed grid cannot model a calendar
+  when months are 28, 30 or 31 days and the roster is two on, two off,
+  three on.
+
+  An abandoned cycle is **data, not failure**, and is persisted as such.
+  A skipped prompt leaves the cycle unaffected. `completion_rate` returns
+  `None` for nothing-recorded and `0.0` for everything-abandoned, because
+  those are different facts. `compare_by_day_type` carries `hours_slept`
+  through and stamps every row `observed_not_caused`.
+
+- **Two near-misses recorded** in
+  [`docs/FORMER_BUGS.md`](docs/FORMER_BUGS.md) — **NM-009** (list order
+  silently deciding a data migration) and **NM-010** (a gamification guard
+  that could not tell a ban from a reward). Both were caught by the suite
+  before shipping; both now carry guards.
+
+400 tests pass, including the design-law linter over the whole repository.
+
+---
+
 Docs and on-repo reference for the **browser build** (a separate
 single-page snapshot of Strata Console, published as a claude.ai
 Artifact). No application behaviour changes; no Python touched, and the

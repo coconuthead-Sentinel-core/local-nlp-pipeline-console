@@ -444,6 +444,47 @@ should already have told him.*
 
 ## Near-misses — caught before shipping, recorded because the reasoning is the value
 
+### NM-010 — The gamification guard could not tell a ban from a reward
+
+`tests/test_focus.py` asserts that nothing the focus module can emit uses
+encouragement vocabulary — the testable half of the `SCOPE.md` §2
+carve-out, which admits measurement and keeps gamification out. The first
+version scanned the whole module source for words like "streak", and
+failed instantly: `focus.py`'s own docstring says *"no streaks, no
+points, no targets"*. That is the **prohibition**, not the feature.
+
+A flat text scan cannot distinguish a rule from a violation of it, so it
+fails on the very file that documents the rule — and the obvious patch,
+removing the word from the docstring, would have deleted the
+documentation to satisfy the linter. **The guard:** the test now parses
+the module with `ast`, collects every docstring, and checks only string
+literals that are *not* docstrings — the ones that could actually reach a
+person. A second test proves that scan still catches a planted reward,
+because a guard that cannot fire reads as proof (see NM-003, and NM-004
+for the linter that flagged itself on its first run).
+
+### NM-009 — List order silently decided a data migration
+
+`strata_tools/codex.py` moved operator identity from the glyph to a
+four-letter code, precisely because the ice cube had come to mean three
+different things across three artefacts. `BY_LEGACY_GLYPH` — the map that
+lets an already-stored glyph still be read — was **derived** by walking
+`OPERATORS` and taking the first match for each glyph.
+
+The ice cube is the ancestor of **both** `STAB` and `GOLD`, because that
+one picture had been carrying both "structure" and "canonical source"
+until they were split. So whichever of the two happened to be listed
+first decided how every stored row would be re-read. `STAB` was listed
+first; the shipped build had always meant `GOLDEN_SOURCE`. The module
+written to end meaning-drift reproduced it on its first draft.
+
+`tests/test_codex.py` caught it on the first run. **The guard:**
+`LEGACY_RESOLUTION` is now a declared map, not a derived one, with the
+standing rule that an ambiguous ancestor resolves to **what the shipped
+build meant** — the documents disagreed with it, but the documents never
+wrote a row. `validate()` additionally fails if any frozen glyph has no
+resolution, so no stored row can become unreadable.
+
 ### NM-008 — The layout planner and its own checker disagreed
 
 `plan_widget_scaling` divided by the bare widget-height sum while
