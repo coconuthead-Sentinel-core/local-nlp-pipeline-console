@@ -555,6 +555,15 @@ async function boot() {
   $('src-onedrive').checked = !!src.onedrive;
   showAttachment(s.attachment);
 
+  /* The open cycle lives on the bridge too, so a reload mid-cycle finds
+     the timer still running and showing the right figure -- the
+     remaining seconds are derived from the stored start, not from when
+     this script happened to begin. */
+  try {
+    await fxBoot();
+  } catch (e) { /* the timer is not worth failing the whole boot over */ }
+
+
   turn('Strata', markdown(
     s.brain
       ? 'Web shell online — local model **' + s.model + '**.\n\n' +
@@ -576,6 +585,160 @@ async function boot() {
   $('send').disabled = false;
 }
 
+
+/* ---------- focus cycle -------------------------------------------------
+   Rules live in strata_tools/focus.py and storage in StrataDB; this file
+   draws and nothing more. It deliberately computes no timestamp: the one
+   clock is Python's, so a cycle cannot record a negative length. */
+
+let fxTick = null;      /* the one-second display interval */
+let fxLoad = null;      /* the load the owner has tapped, not yet saved */
+let fxCycle = null;     /* which cycle the open panel is reporting on */
+let fxPhase = null;     /* START or END */
+let fxLengths = [15, 25, 45];
+let fxModes = ['deep', 'shallow', 'scattered', 'blocked', 'admin'];
+
+function fxBuildKeys() {
+  const lenSel = $('fx-len');
+  lenSel.textContent = '';
+  fxLengths.forEach((n) => {
+    const o = document.createElement('option');
+    o.value = String(n);
+    o.textContent = n + ' min';
+    lenSel.appendChild(o);
+  });
+
+  const loads = $('fx-loads');
+  loads.textContent = '';
+  for (let i = 1; i <= 10; i += 1) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'fx-key';
+    b.textContent = String(i);
+    b.setAttribute('aria-pressed', 'false');
+    b.setAttribute('aria-label', 'Reported load ' + i + ' of 10');
+    b.addEventListener('click', () => fxPickLoad(i));
+    loads.appendChild(b);
+  }
+
+  const modes = $('fx-modes');
+  modes.textContent = '';
+  fxModes.forEach((m) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'ctl';
+    b.textContent = m;
+    b.addEventListener('click', () => fxSave(m));
+    modes.appendChild(b);
+  });
+}
+
+function fxPickLoad(n) {
+  fxLoad = n;
+  $('fx-loads').querySelectorAll('.fx-key').forEach((b) => {
+    b.setAttribute('aria-pressed', String(Number(b.textContent) === n));
+  });
+  /* Tap one: acknowledged immediately. Invisible success reads as
+     broken, and the second tap is a separate decision. */
+  $('fx-said').textContent = 'Load ' + n + ' \u2014 now a mode, or Skip.';
+}
+
+function fxShowPanel(prompt, phase, cycleId) {
+  fxPhase = phase;
+  fxCycle = cycleId;
+  fxLoad = null;
+  $('fx-ask').textContent = prompt;
+  $('fx-said').textContent = '';
+  $('fx-loads').querySelectorAll('.fx-key').forEach((b) => {
+    b.setAttribute('aria-pressed', 'false');
+  });
+  $('fx-panel').hidden = false;
+}
+
+function fxHidePanel() {
+  $('fx-panel').hidden = true;
+  fxLoad = null;
+  fxCycle = null;
+  fxPhase = null;
+}
+
+function fxSkip() {
+  /* Nothing is stored and nothing is said about it. The kernel's own
+     docstring: the absence of a report is normal and carries no
+     penalty anywhere. */
+  fxHidePanel();
+}
+
+async function fxSave(mode) {
+  if (!api) return;
+  if (fxLoad === null) {
+    $('fx-said').textContent = 'Tap a load from 1 to 10 first, or Skip.';
+    return;
+  }
+  const r = await api.focus_report(fxCycle, fxPhase, fxLoad, mode);
+  if (!r.ok) { $('fx-said').textContent = r.message; return; }
+  fxHidePanel();
+  note(r.message);
+}
+
+function fxRender(state) {
+  if (state.lengths && state.lengths.length) fxLengths = state.lengths;
+  if (state.modes && state.modes.length) fxModes = state.modes;
+  const open = !!state.open;
+  $('fx-start').hidden = open;
+  $('fx-stop').hidden = !open;
+  $('fx-len').disabled = open;
+  $('fx-left').textContent = open ? state.display : '';
+}
+
+function fxStopTick() {
+  if (fxTick) { clearInterval(fxTick); fxTick = null; }
+}
+
+function fxStartTick() {
+  fxStopTick();
+  fxTick = setInterval(async () => {
+    if (!api) return;
+    const s = await api.focus_state();
+    if (!s.open) { fxStopTick(); fxRender(s); return; }
+    $('fx-left').textContent = s.display;
+    if (s.expired) {
+      /* Ran to the end. Closed as COMPLETED by the engine, then the
+         owner decides whether to report -- the prompt never decides
+         for him. */
+      fxStopTick();
+      await fxClose(true);
+    }
+  }, 1000);
+}
+
+async function fxStart() {
+  if (!api) return;
+  const r = await api.focus_start(Number($('fx-len').value));
+  if (!r.ok) { note(r.message, true); return; }
+  fxRender(r);
+  note(r.message);
+  fxShowPanel(r.prompt, r.phase, r.id);
+  fxStartTick();
+}
+
+async function fxClose(ranToEnd) {
+  if (!api) return;
+  fxStopTick();
+  const r = await api.focus_close(ranToEnd);
+  if (!r.ok) { note(r.message, true); return; }
+  fxRender(r);
+  note(r.message);
+  fxShowPanel(r.prompt, r.phase, r.id);
+}
+
+async function fxBoot() {
+  if (!api) return;
+  const s = await api.focus_state();
+  fxBuildKeys();
+  fxRender(s);
+  if (s.open) fxStartTick();
+}
 document.addEventListener('DOMContentLoaded', () => {
   $('composer').addEventListener('submit', (e) => { e.preventDefault(); send(); });
 
@@ -697,6 +860,17 @@ document.addEventListener('DOMContentLoaded', () => {
   /* Five seconds: slow enough to cost nothing, fast enough that "☁
      OneDrive ready" lands while he is still looking at the window. */
   setInterval(pollNotes, 5000);
+
+  /* ---------- focus cycle (ticket 5b) ---------------------------------
+     The engine owns the clock: both timestamps on a stored row come from
+     Python. This only DISPLAYS, asking the bridge for the remaining
+     seconds, so a reload mid-cycle still shows the right figure and the
+     record can never disagree with itself. */
+  fxBuildKeys();
+  $('fx-start').addEventListener('click', fxStart);
+  $('fx-stop').addEventListener('click', () => fxClose(false));
+  $('fx-skip').addEventListener('click', fxSkip);
+  $('fx-nomode').addEventListener('click', () => fxSave(null));
 
   window.addEventListener('pywebviewready', boot);
   if (window.pywebview && window.pywebview.api) boot();

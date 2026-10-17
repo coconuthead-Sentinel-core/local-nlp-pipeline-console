@@ -328,3 +328,102 @@ def validate(cycles, reports, days):
         if c.get("ended_at") and c["ended_at"] < c["started_at"]:
             problems.append(f"cycle {c.get('id')}: ends before it starts")
     return problems
+
+
+# ---------------------------------------------------------------------------
+# Shell-facing rules. Pure, so the shell decides nothing it could get wrong.
+#
+# These exist because the shell is where honesty is enforced or lost. The
+# label on a dial, the wording of a closing note, and the prominence of a
+# Skip control are not cosmetics here -- SCOPE.md section 3 makes a label
+# implying measurement a DEFECT, and section 2's carve-out rules out
+# anything that urges. A rule kept in one tested place cannot drift
+# between the panel, the command and the transcript.
+# ---------------------------------------------------------------------------
+
+#: Working modes offered by the two-tap prompt. Descriptive, not evaluative:
+#: none of these is a better mode to be in than another, and nothing in the
+#: module ranks them.
+MODES = ("deep", "shallow", "scattered", "blocked", "admin")
+
+#: Lengths offered by the timer, in minutes. 15 is first because that is
+#: the window the owner actually gets on a work day; the roster, not a
+#: productivity convention, chose this list.
+LENGTHS = (15, 25, 45)
+
+
+def format_remaining(seconds):
+    """Seconds as ``mm:ss``, never negative.
+
+    A timer showing ``-0:03`` reads as a bug, and an expired cycle has no
+    negative time left -- it has none.
+    """
+    try:
+        total = int(seconds)
+    except (TypeError, ValueError):
+        total = 0
+    if total < 0:
+        total = 0
+    return f"{total // 60}:{total % 60:02d}"
+
+
+def remaining_seconds(planned_minutes, elapsed_seconds):
+    """How long is left. Pure arithmetic, so the page cannot invent it."""
+    try:
+        planned = int(planned_minutes)
+    except (TypeError, ValueError):
+        planned = 0
+    try:
+        elapsed = float(elapsed_seconds)
+    except (TypeError, ValueError):
+        elapsed = 0.0
+    left = planned * 60 - elapsed
+    return 0 if left < 0 else int(left)
+
+
+def report_prompt(phase):
+    """The question put to the owner. Asks what he *reports*, not what is.
+
+    Cognitive Load Theory has instruments; a dial is not one. The wording
+    here is the difference between data that is admissible and a number
+    dressed up as a measurement, and it costs nothing to get right.
+    """
+    if phase == "START":
+        return "Before you start -- how loaded does this feel right now?"
+    if phase == "END":
+        return "That cycle is closed -- how loaded does it feel now?"
+    raise ValueError(f"phase must be one of {PHASES}; got {phase!r}")
+
+
+def closing_note(cycle):
+    """One plain sentence about a closed cycle. No praise, no streak.
+
+    An abandoned cycle is reported as what it is -- a length and an
+    outcome -- because SCOPE.md section 2 admits this feature as
+    measurement and rules out encouragement. "Well done" and "you broke
+    your streak" are the same defect wearing different clothes: both treat
+    the number as a score.
+    """
+    minutes = cycle.get("planned_minutes")
+    outcome = cycle.get("outcome")
+    if outcome == "COMPLETED":
+        return f"Cycle closed: {minutes} minutes, ran to the end. Recorded."
+    if outcome == "ABANDONED":
+        return (f"Cycle closed early out of {minutes} minutes. Recorded as "
+                f"data -- a cycle cut short is how the length you can "
+                f"actually finish gets found.")
+    return f"Cycle of {minutes} minutes is still open."
+
+
+def start_refusal(open_cycle):
+    """What to say when a cycle is already running.
+
+    Two clocks on one session would write two overlapping rows and make
+    every per-day figure wrong. The refusal names the open cycle rather
+    than failing silently, because a button that appears to do nothing is
+    the defect class this shop names first.
+    """
+    minutes = open_cycle.get("planned_minutes")
+    started = (open_cycle.get("started_at") or "")[11:16]
+    return (f"A {minutes}-minute cycle started at {started} is still open. "
+            f"Close it first, or let it run out.")

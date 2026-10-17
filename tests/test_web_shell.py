@@ -28,9 +28,21 @@ HTML_PATH = os.path.join(ROOT, "web", "index.html")
 JS_PATH = os.path.join(ROOT, "web", "app.js")
 
 
+def read(path):
+    """Read a shell file and CLOSE it.
+
+    Every call site here used a bare ``open(path).read()``, which leaves
+    the handle to the garbage collector and spilled a ResourceWarning per
+    test -- nineteen of them across this file. Warning noise is not
+    harmless: it is where a real warning goes to hide.
+    """
+    with open(path, encoding="utf-8") as fh:
+        return fh.read()
+
+
 def custom_properties():
     """``{--name: value}`` from the stylesheet's :root block."""
-    css = open(CSS_PATH, encoding="utf-8").read()
+    css = read(CSS_PATH)
     return dict(re.findall(r"(--[\w-]+):\s*(#[0-9A-Fa-f]{3,8}|[\w.]+)", css))
 
 
@@ -100,7 +112,7 @@ class WebPaletteContrastTests(unittest.TestCase):
                     self.props["--ink-mute"], self.props[key])))
 
     def test_the_mode_caption_uses_full_ink(self):
-        css = open(CSS_PATH, encoding="utf-8").read()
+        css = read(CSS_PATH)
         block = css[css.index(".mode small"):css.index(".mode small") + 400]
         self.assertIn("color: var(--ink)", block)
         self.assertNotIn("color: var(--ink-mute)", block)
@@ -117,7 +129,7 @@ class MarkupAccessibilityTests(unittest.TestCase):
     """The things HTML gives for free are only free if actually used."""
 
     def setUp(self):
-        self.html = open(HTML_PATH, encoding="utf-8").read()
+        self.html = read(HTML_PATH)
 
     def test_controls_are_real_buttons_not_clickable_divs(self):
         # A <div onclick> is how a web UI throws away the keyboard for
@@ -146,7 +158,7 @@ class RenderingSafetyTests(unittest.TestCase):
     """Model output is data, never markup."""
 
     def test_the_renderer_escapes_before_it_formats(self):
-        js = open(JS_PATH, encoding="utf-8").read()
+        js = read(JS_PATH)
         self.assertIn("function esc(", js)
         # markdown() must escape first; if esc() were applied after the
         # tags were inserted it would escape our own markup instead.
@@ -178,30 +190,30 @@ class ReadAlongTests(unittest.TestCase):
         self.assertNotEqual(self.speech.speakable(text), text)
 
     def test_the_page_asks_for_word_highlighting_only_when_safe(self):
-        js = open(JS_PATH, encoding="utf-8").read()
+        js = read(JS_PATH)
         self.assertIn("item.matches", js)
         # onboundary must be bound behind the matches check, not always.
         head = js[:js.index("utter.onboundary")]
         self.assertIn("if (item.matches)", head)
 
     def test_code_blocks_are_never_read_aloud(self):
-        js = open(JS_PATH, encoding="utf-8").read()
+        js = read(JS_PATH)
         self.assertIn("closest('pre')", js)
 
     def test_a_sentence_is_tracked_by_index_not_by_element(self):
         # A sentence can run across inline markup and so be several
         # spans; they must share one index or half of it lights up.
-        js = open(JS_PATH, encoding="utf-8").read()
+        js = read(JS_PATH)
         self.assertIn("span.dataset.i = String(index)", js)
         self.assertIn("spans[index].push(span)", js)
 
     def test_stopping_clears_the_highlight(self):
-        js = open(JS_PATH, encoding="utf-8").read()
+        js = read(JS_PATH)
         stop = js[js.index("function stopReading("):]
         self.assertIn("clearHighlight()", stop[:400])
 
     def test_the_highlights_are_declared_in_the_stylesheet(self):
-        css = open(CSS_PATH, encoding="utf-8").read()
+        css = read(CSS_PATH)
         self.assertIn(".s.reading", css)
         self.assertIn(".w.now", css)
 
@@ -209,7 +221,7 @@ class ReadAlongTests(unittest.TestCase):
         # A highlight that makes its own text harder to read has
         # defeated itself. Measured, not assumed.
         props = custom_properties()
-        css = open(CSS_PATH, encoding="utf-8").read()
+        css = read(CSS_PATH)
         for marker in (".s.reading", ".w.now"):
             block = css[css.index(marker):css.index(marker) + 260]
             colour = re.search(r"background:\s*(#[0-9A-Fa-f]{6})", block)
@@ -220,7 +232,7 @@ class ReadAlongTests(unittest.TestCase):
 
     def test_the_word_marker_is_not_colour_alone(self):
         # WCAG 1.4.1 applies to a reading aid as much as to a button.
-        css = open(CSS_PATH, encoding="utf-8").read()
+        css = read(CSS_PATH)
         block = css[css.index(".w.now"):css.index(".w.now") + 260]
         self.assertIn("underline", block)
 
@@ -235,8 +247,8 @@ class ContextSourceTests(unittest.TestCase):
     """
 
     def setUp(self):
-        self.html = open(HTML_PATH, encoding="utf-8").read()
-        self.js = open(JS_PATH, encoding="utf-8").read()
+        self.html = read(HTML_PATH)
+        self.js = read(JS_PATH)
 
     def test_all_three_controls_exist(self):
         for element_id in ('id="src-web"', 'id="src-onedrive"',
@@ -302,7 +314,7 @@ class BridgeSurfaceTests(unittest.TestCase):
         cls.web = strata_web
 
     def test_every_method_the_page_calls_exists_on_the_bridge(self):
-        js = open(JS_PATH, encoding="utf-8").read()
+        js = read(JS_PATH)
         called = set(re.findall(r"api\.([a-z_]+)\(", js))
         for name in sorted(called):
             with self.subTest(method=name):
@@ -333,8 +345,8 @@ class BridgeSurfaceTests(unittest.TestCase):
     def test_free_ram_is_on_screen(self):
         """3 s with room, 100 s without, measured. The condition that
         decides how the app feels must be visible, not inferred."""
-        html = open(HTML_PATH, encoding="utf-8").read()
-        js = open(JS_PATH, encoding="utf-8").read()
+        html = read(HTML_PATH)
+        js = read(JS_PATH)
         self.assertIn('id="ram"', html)
         self.assertIn("api.model_state(", js)
         self.assertIn("showRam(", js)
@@ -342,14 +354,14 @@ class BridgeSurfaceTests(unittest.TestCase):
     def test_the_wait_counts_out_loud(self):
         """The cold model takes ~20s. A static placeholder for that long
         reads as a hang, so the page must tick and must stop ticking."""
-        js = open(JS_PATH, encoding="utf-8").read()
+        js = read(JS_PATH)
         self.assertIn("setInterval(tick", js)
         self.assertIn("clearInterval(ticker)", js)
 
     def test_the_ticker_is_cleared_in_a_finally(self):
         """An interval left running after an error keeps counting under
         an answer that already arrived."""
-        js = open(JS_PATH, encoding="utf-8").read()
+        js = read(JS_PATH)
         tail = js[js.index("clearInterval(ticker)") - 200:
                   js.index("clearInterval(ticker)")]
         self.assertIn("finally", tail)
@@ -357,7 +369,7 @@ class BridgeSurfaceTests(unittest.TestCase):
     def test_the_page_asks_python_for_the_grammar(self):
         """If app.js ever grows its own list of slash commands, there
         are two grammars and they will disagree."""
-        js = open(JS_PATH, encoding="utf-8").read()
+        js = read(JS_PATH)
         self.assertIn("api.run_command(", js)
         for name in ("'/status'", '"/status"', "'/lexicon'", '"/lexicon"'):
             self.assertNotIn(name, js,
@@ -366,3 +378,103 @@ class BridgeSurfaceTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class FocusCycleShellTests(unittest.TestCase):
+    """The timer and the two-tap report, as the shipped shell carries them."""
+
+    def setUp(self):
+        self.html = read(HTML_PATH)
+        self.js = read(JS_PATH)
+        self.css = read(CSS_PATH)
+
+    def test_every_timer_control_exists(self):
+        for ident in ("fx-len", "fx-start", "fx-stop", "fx-left"):
+            with self.subTest(control=ident):
+                self.assertIn(f'id="{ident}"', self.html)
+
+    def test_every_report_control_exists(self):
+        for ident in ("fx-panel", "fx-ask", "fx-loads", "fx-modes",
+                      "fx-nomode", "fx-skip", "fx-said"):
+            with self.subTest(control=ident):
+                self.assertIn(f'id="{ident}"', self.html)
+
+    def test_the_countdown_announces_itself(self):
+        # A number that changes is how the owner knows the console is
+        # alive (FB-011). A screen-reader user needs it announced.
+        block = self.html.split('id="fx-left"')[1][:200]
+        self.assertIn('aria-live="polite"', block)
+
+    def test_skip_is_a_real_button_of_equal_prominence(self):
+        # SCOPE.md section 2's carve-out rules out nudges. A Skip that is
+        # smaller, greyer or further away than the alternative IS a nudge,
+        # so equal prominence is asserted structurally: Skip carries the
+        # same control class as the mode buttons it sits beside.
+        self.assertIn('<button id="fx-skip" class="ctl"', self.html)
+        self.assertIn('<button id="fx-nomode" class="ctl"', self.html)
+
+    def test_the_panel_is_labelled_by_its_question(self):
+        self.assertIn('aria-labelledby="fx-ask"', self.html)
+
+    def test_the_load_keys_are_real_buttons(self):
+        # Built in JS, so the assertion is on how they are built.
+        self.assertIn("createElement('button')", self.js)
+        self.assertIn("'fx-key'", self.js)
+
+    def test_the_load_selection_is_not_colour_alone(self):
+        # WCAG 1.4.1. aria-pressed carries it, and the stylesheet also
+        # thickens the border rather than only changing the fill.
+        self.assertIn("aria-pressed", self.js)
+        pressed = self.css.split('.fx-key[aria-pressed="true"]')[1][:160]
+        self.assertIn("border-width", pressed)
+
+    def test_every_load_key_is_labelled_for_a_screen_reader(self):
+        self.assertIn("'Reported load '", self.js)
+
+    def test_the_page_never_stamps_a_timestamp(self):
+        """The engine owns the clock; the page must not author one.
+
+        If JavaScript supplied a start and Python an end, two clocks would
+        write one row and a cycle could record a negative length -- which
+        focus.close_cycle raises on, after the work is already done.
+        """
+        for forbidden in ("new Date().toISOString", "Date.now() +",
+                          "started_at:", "ended_at:"):
+            with self.subTest(pattern=forbidden):
+                self.assertNotIn(forbidden, self.js)
+
+    def test_the_remaining_time_comes_from_the_bridge(self):
+        # The page displays what focus_state() computed; it does not
+        # subtract timestamps of its own.
+        self.assertIn("api.focus_state()", self.js)
+        self.assertIn("s.display", self.js)
+
+    def test_the_timer_stops_counting_when_the_cycle_closes(self):
+        # A countdown still ticking after a close would be a control
+        # reporting something untrue.
+        self.assertIn("fxStopTick", self.js)
+        self.assertIn("clearInterval", self.js)
+
+    def test_a_reload_mid_cycle_restores_the_timer(self):
+        self.assertIn("fxBoot", self.js)
+
+    def test_skipping_stores_nothing(self):
+        body = self.js.split("function fxSkip()")[1].split("}")[0]
+        self.assertIn("fxHidePanel", body)
+        self.assertNotIn("focus_report", body)
+
+    def test_the_shell_introduces_no_new_colour(self):
+        """The contrast audit above covers the declared palette only.
+
+        A hex literal inside the focus rules would be a colour no test
+        has measured, which is how FB-007 shipped eleven failing pairs.
+        """
+        rules = self.css.split("--- focus cycle")[1]
+        self.assertNotRegex(rules, r"#[0-9A-Fa-f]{3,8}")
+
+    def test_no_shell_text_rewards_a_number_for_going_up(self):
+        for banned in ("streak", "well done", "congrat", "badge", "points",
+                       "keep it up", "you earned", "goal", "quota"):
+            with self.subTest(word=banned):
+                self.assertNotIn(banned, self.js.lower())
+                self.assertNotIn(banned, self.html.lower())

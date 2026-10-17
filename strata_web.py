@@ -32,12 +32,14 @@ Run it:  py -3 strata_web.py
 
 import os
 import threading
+from datetime import datetime
 import time
 
 import webview
 
 from strata_core import ALL_GLYPHS, StrataPipeline
-from strata_tools import (commands, context_sources, dictation, session,
+from strata_tools import (commands, context_sources, dictation, focus,
+                          session,
                           speech)
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -77,6 +79,14 @@ class Api:
         self._whisper_model = None
         self._whisper_tier = None
         self._whisper_used_at = None
+        # --- focus cycles (ticket 5b) ----------------------------------
+        # The open cycle lives on the bridge, not in the page, for the
+        # same reason the sources do: it survives a reload, and the rule
+        # that there is only ever ONE open cycle stays in one place. The
+        # engine also owns the clock -- both timestamps on a row come
+        # from here, so a cycle can never record a negative length.
+        self._open_cycle = None
+        self._focus_session = datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
         self._start_warmup()
         # Same idle-release policy as the desktop shell, and for the same
         # measured reason: the model holds ~174 MB and releasing returns
@@ -372,6 +382,33 @@ class Api:
             out["clearLog"] = True
             return out
 
+        if name == "focus":
+            argument = (parsed["argument"] or "").strip().lower()
+            if argument in ("stop", "close", "end"):
+                out = self.focus_close(ran_to_end=False)
+                out["handled"] = True
+                return out
+            if not argument:
+                state = self.focus_state()
+                if state.get("open"):
+                    state["message"] = (
+                        f"{state['display']} left of "
+                        f"{state['plannedMinutes']} minutes. "
+                        f"/focus stop closes it.")
+                else:
+                    lengths = " | ".join(str(n) for n in focus.LENGTHS)
+                    state["message"] = (f"No cycle open. /focus "
+                                        f"{lengths} starts one.")
+                state["handled"] = True
+                return state
+            if not argument.isdigit():
+                lengths = " | ".join(str(n) for n in focus.LENGTHS)
+                return {"ok": True, "handled": True, "bad": True,
+                        "message": (f"How long? /focus {lengths}, "
+                                    f"or /focus stop.")}
+            out = self.focus_start(int(argument))
+            out["handled"] = True
+            return out
         if name == "mode":
             argument = parsed["argument"]
             if not argument:
@@ -386,6 +423,122 @@ class Api:
         # test asserts they do, so this is a guard, not a code path.
         return {"ok": True, "handled": True, "bad": True,
                 "message": commands.unknown_message(text)}
+
+    # --- focus cycles and experience sampling (ticket 5b) -----------------
+    # Rules live in strata_tools/focus.py; storage in StrataDB. These four
+    # methods move data between them and hold the one piece of state that
+    # cannot be pure: which cycle is open right now.
+
+    def _now(self):
+        """The single clock. Both ends of a row are stamped here."""
+        return datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
+
+    def focus_state(self):
+        """What the page needs to draw the timer, including after a reload.
+
+        ``elapsed`` is computed here rather than in the page so the
+        countdown survives a reload mid-cycle: the page can be reopened
+        and still show the right remaining time, because it is derived
+        from the stored start rather than from when the script began.
+        """
+        if not self._open_cycle:
+            return {"ok": True, "open": False,
+                    "lengths": list(focus.LENGTHS),
+                    "modes": list(focus.MODES)}
+        started = self._open_cycle["started_at"]
+        try:
+            elapsed = (datetime.now()
+                       - datetime.strptime(started, "%Y-%m-%dT%H:%M:%S")
+                       ).total_seconds()
+        except ValueError:
+            elapsed = 0
+        left = focus.remaining_seconds(
+            self._open_cycle["planned_minutes"], elapsed)
+        return {"ok": True, "open": True,
+                "id": self._open_cycle["id"],
+                "plannedMinutes": self._open_cycle["planned_minutes"],
+                "remaining": left,
+                "display": focus.format_remaining(left),
+                "expired": left == 0,
+                "lengths": list(focus.LENGTHS),
+                "modes": list(focus.MODES)}
+
+    def focus_start(self, minutes):
+        """Open a cycle. Persists BEFORE it ticks.
+
+        A timer counting down with no row behind it is a control that
+        does nothing -- the owner would find out fifteen minutes later,
+        with the work done and the record missing. So the write happens
+        first and its failure is reported immediately.
+        """
+        if self._open_cycle:
+            return {"ok": False, "bad": True,
+                    "message": focus.start_refusal(self._open_cycle)}
+        try:
+            cycle = focus.new_cycle(self._focus_session, int(minutes),
+                                    self._now())
+        except (ValueError, TypeError) as exc:
+            return {"ok": False, "bad": True, "message": str(exc)}
+        try:
+            cycle_id = self.pipeline.db.save_cycle(cycle)
+        except Exception as exc:                       # pragma: no cover
+            return {"ok": False, "bad": True,
+                    "message": f"The cycle could not be saved, so the "
+                               f"timer did not start: {exc}"}
+        if not cycle_id:                               # pragma: no cover
+            return {"ok": False, "bad": True,
+                    "message": "The cycle did not persist, so the timer "
+                               "did not start."}
+        cycle["id"] = cycle_id
+        self._open_cycle = cycle
+        state = self.focus_state()
+        state["message"] = (f"Cycle open: {cycle['planned_minutes']} "
+                            f"minutes. Recording.")
+        state["prompt"] = focus.report_prompt("START")
+        state["phase"] = "START"
+        return state
+
+    def focus_close(self, ran_to_end=False):
+        """Close the open cycle. Replaces the row; never adds a second."""
+        if not self._open_cycle:
+            return {"ok": False, "bad": True,
+                    "message": "No cycle is open."}
+        cycle_id = self._open_cycle["id"]
+        stored = [c for c in self.pipeline.db.cycles()
+                  if c.get("id") == cycle_id]
+        base = stored[0] if stored else self._open_cycle
+        try:
+            closed = focus.close_cycle(base, self._now(), bool(ran_to_end))
+        except ValueError as exc:                      # pragma: no cover
+            return {"ok": False, "bad": True, "message": str(exc)}
+        self.pipeline.db.save_cycle(closed)
+        self._open_cycle = None
+        return {"ok": True, "open": False,
+                "id": cycle_id,
+                "message": focus.closing_note(closed),
+                "prompt": focus.report_prompt("END"),
+                "phase": "END",
+                "lengths": list(focus.LENGTHS),
+                "modes": list(focus.MODES)}
+
+    def focus_report(self, cycle_id, phase, load, mode=None, note=None):
+        """Store one sample. Skipping never reaches here, by design.
+
+        The kernel raises on a load off the scale and this does NOT
+        swallow it: a silently dropped report would be a control that
+        appears to work and records nothing.
+        """
+        try:
+            report = focus.new_report(int(cycle_id), phase, int(load),
+                                      mode=mode or None,
+                                      note=(note or None))
+        except (ValueError, TypeError) as exc:
+            return {"ok": False, "bad": True, "message": str(exc)}
+        self.pipeline.db.save_report(report)
+        said = f"Recorded: you reported {report['reported_load']} of 10"
+        if report["mode"]:
+            said += f", working {report['mode']}"
+        return {"ok": True, "message": said + "."}
 
     # --- conversation -----------------------------------------------------
     def send(self, text):

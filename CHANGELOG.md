@@ -12,6 +12,64 @@ root cause and the guard.
 
 ## [Unreleased]
 
+### Added — the focus timer and the two-tap report (2026-10-17)
+
+Ticket 5b. The kernel and the store existed; nothing could reach them.
+Now a cycle can be started, watched, closed and reported on from the
+shell. Pseudocode was written and filed before the code, at
+`Claude AI\Portfolio\boards\2026-10-17_focus-timer-two-tap-report.md`.
+
+- **The timer** — a length (15 | 25 | 45), Start, Stop, and a countdown
+  in the top row. 15 minutes is offered first because that is the window
+  a work day actually leaves; the roster chose the list, not a
+  productivity convention.
+- **The engine owns the clock.** Both timestamps on a stored row are
+  stamped in Python. The page asks `focus_state()` for the remaining
+  seconds and displays them, and a test asserts the page never stamps a
+  timestamp of its own. Two clocks writing one row could record a
+  negative length — which `focus.close_cycle` raises on, at the worst
+  possible moment, after the work is already done.
+- **A reload mid-cycle restores the timer**, because the open cycle lives
+  on the bridge and the remaining time is derived from the stored start
+  rather than from when the script began.
+- **The cycle persists before it ticks.** If the write fails the timer
+  does not start and says so. A countdown with no row behind it is a
+  control that does nothing — and the owner would find out fifteen
+  minutes later, with the work done and the record gone.
+- **Starting twice is refused by name**, quoting the open cycle's length
+  and start time rather than failing quietly.
+- **The two-tap report** — tap a load from 1 to 10, tap a working mode,
+  done. Offered at START and at END, and **Skip carries the same control
+  class as the alternatives**: a Skip that is smaller or greyer than the
+  button beside it is a nudge, and §2's carve-out rules out nudges, so
+  equal prominence is asserted structurally rather than promised.
+- **The wording asks what is reported, not what is.** "How loaded does
+  this feel right now?" A dial is not an instrument for cognitive load;
+  §3 makes any label implying otherwise a defect, and tests ban
+  "measured", "detected" and the rest from the prompt.
+- **Nothing urges.** An abandoned cycle is reported as data — "a cycle
+  cut short is how the length you can actually finish gets found" — and
+  tests ban streak, praise, goal, target and quota language from the
+  kernel, the HTML and the JavaScript alike. "Well done" and "you broke
+  your streak" are one defect in two coats: both treat the number as a
+  score.
+- **`/focus`** starts, reports and stops a cycle from the message box;
+  `/focus` alone says what is open.
+- Shell-facing rules went to the kernel first, as always:
+  `format_remaining`, `remaining_seconds`, `report_prompt`,
+  `closing_note`, `start_refusal`, `MODES`, `LENGTHS` — **15 kernel
+  tests** — then **15 shell tests** on the shipped HTML, CSS and JS. The
+  focus rules introduce no new colour, so the existing contrast audit
+  still covers every pair on screen.
+
+### Fixed — the suite stopped spilling warnings (2026-10-17)
+
+- `tests/test_web_shell.py` read the three shell files with bare
+  `open(path).read()` in **nineteen** places, leaving each handle to the
+  garbage collector and spilling a `ResourceWarning` per test. One
+  `read()` helper now closes them. Warning noise is not harmless — it is
+  where a real warning goes to hide, and the suite had been printing
+  enough of it to bury one.
 ### Fixed — the quality gate had been failing for six weeks (2026-10-17)
 
 - **CI has been red on every push since 2026-09-01** and nobody knew.

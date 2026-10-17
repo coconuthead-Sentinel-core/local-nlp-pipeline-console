@@ -56,6 +56,19 @@
     <input type="checkbox" id="autoread"> Auto
   </label>
 
+  <!-- Focus cycle. The countdown is a live region because a number
+       that changes is how the owner knows the console is alive -- the
+       same lesson FB-011 taught about the twenty-second model load. -->
+  <div class="grp" role="group" aria-label="Focus cycle">
+    <label class="lbl" for="fx-len">Focus</label>
+    <select id="fx-len" class="ctl" aria-label="Cycle length in minutes">
+    </select>
+    <button id="fx-start" class="ctl" type="button">Start</button>
+    <button id="fx-stop" class="ctl" type="button" hidden>Stop</button>
+    <output id="fx-left" class="size" aria-live="polite"
+            title="Time left in this cycle"></output>
+  </div>
+
   <span class="spacer"></span>
 
   <button id="clear" class="ctl" type="button">
@@ -83,6 +96,29 @@
 
   <output id="attached" class="attached" aria-live="polite"></output>
 </div>
+
+<!-- The two-tap report. Optional and dismissable by scope decision
+     (docs/SCOPE.md section 1), so Skip is a real button of the same
+     size and weight as the rest: a Skip that is smaller or greyer is a
+     nudge, and section 2's carve-out rules out nudges. The wording asks
+     what the owner REPORTS -- a dial is not an instrument for cognitive
+     load, and section 3 makes any label implying otherwise a defect. -->
+<section id="fx-panel" class="fx" aria-labelledby="fx-ask" hidden>
+  <p id="fx-ask" class="fx-ask"></p>
+  <div class="fx-row" role="group" aria-label="Reported load, 1 to 10">
+    <span class="lbl">Load</span>
+    <span id="fx-loads"></span>
+  </div>
+  <div class="fx-row" role="group" aria-label="Working mode, optional">
+    <span class="lbl">Mode</span>
+    <span id="fx-modes"></span>
+    <button id="fx-nomode" class="ctl" type="button">No mode</button>
+  </div>
+  <div class="fx-row">
+    <button id="fx-skip" class="ctl" type="button">Skip</button>
+    <output id="fx-said" class="size" aria-live="polite"></output>
+  </div>
+</section>
 
 <div class="modes" role="radiogroup" aria-label="Operating mode">
   <button class="mode" data-zone="GREEN"  role="radio" aria-checked="true" type="button">

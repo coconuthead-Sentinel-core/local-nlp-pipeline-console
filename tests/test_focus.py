@@ -330,3 +330,100 @@ class ScopeTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ShellFacingRuleTests(unittest.TestCase):
+    """The rules the shell must not decide for itself (ticket 5b)."""
+
+    def test_remaining_is_shown_as_minutes_and_padded_seconds(self):
+        self.assertEqual(focus.format_remaining(905), "15:05")
+        self.assertEqual(focus.format_remaining(60), "1:00")
+        self.assertEqual(focus.format_remaining(9), "0:09")
+
+    def test_an_expired_timer_never_shows_negative_time(self):
+        # "-0:03" reads as a bug, and an expired cycle has no negative
+        # time left -- it has none.
+        self.assertEqual(focus.format_remaining(-1), "0:00")
+        self.assertEqual(focus.format_remaining(-9999), "0:00")
+
+    def test_a_junk_value_does_not_crash_the_display(self):
+        self.assertEqual(focus.format_remaining(None), "0:00")
+        self.assertEqual(focus.format_remaining("soon"), "0:00")
+
+    def test_remaining_seconds_counts_down_from_the_planned_length(self):
+        self.assertEqual(focus.remaining_seconds(15, 0), 900)
+        self.assertEqual(focus.remaining_seconds(15, 100), 800)
+
+    def test_remaining_seconds_floors_at_zero(self):
+        self.assertEqual(focus.remaining_seconds(15, 100000), 0)
+
+    def test_the_prompt_asks_what_is_reported_not_what_is(self):
+        # SCOPE.md section 3: no self-report may be presented as a
+        # measurement. "feels" is the whole point of the wording.
+        for phase in ("START", "END"):
+            text = focus.report_prompt(phase).lower()
+            self.assertIn("feel", text)
+            for banned in ("your cognitive load is", "measured",
+                           "measurement", "detected"):
+                self.assertNotIn(banned, text)
+
+    def test_an_unknown_phase_is_refused_rather_than_guessed(self):
+        with self.assertRaises(ValueError):
+            focus.report_prompt("MIDDLE")
+
+    def test_a_completed_cycle_is_reported_without_praise(self):
+        note = focus.closing_note(
+            {"planned_minutes": 15, "outcome": "COMPLETED"}).lower()
+        self.assertIn("15 minutes", note)
+        for banned in ("well done", "great", "nice", "congrat", "streak",
+                       "keep it up", "you earned", "points", "badge"):
+            self.assertNotIn(banned, note)
+
+    def test_an_abandoned_cycle_is_reported_as_data_not_failure(self):
+        note = focus.closing_note(
+            {"planned_minutes": 25, "outcome": "ABANDONED"}).lower()
+        self.assertIn("data", note)
+        for banned in ("failed", "failure", "broke", "lost", "missed",
+                       "try again", "unfortunately", "only"):
+            self.assertNotIn(banned, note)
+
+    def test_no_closing_note_ever_urges(self):
+        # The carve-out in SCOPE.md section 2 admits measurement and rules
+        # out encouragement. Both halves are checked, because "well done"
+        # and "you broke your streak" are one defect in two coats.
+        for outcome in ("COMPLETED", "ABANDONED", None):
+            note = focus.closing_note(
+                {"planned_minutes": 15, "outcome": outcome}).lower()
+            with self.subTest(outcome=outcome):
+                for banned in ("should", "next time", "don't break",
+                               "streak", "goal", "target", "quota"):
+                    self.assertNotIn(banned, note)
+
+    def test_starting_twice_is_refused_and_the_open_cycle_is_named(self):
+        open_cycle = focus.new_cycle("s1", 15, "2026-10-17T09:04:00",
+                                     cycle_id=7)
+        text = focus.start_refusal(open_cycle)
+        self.assertIn("15", text)
+        self.assertIn("09:04", text)
+
+    def test_the_offered_modes_are_descriptive_not_ranked(self):
+        self.assertIn("deep", focus.MODES)
+        self.assertIn("blocked", focus.MODES)
+        # Nothing in the module may rank them -- a "best" mode would make
+        # the prompt an evaluation instead of a record.
+        for word in ("good", "bad", "best", "worst", "poor", "excellent"):
+            self.assertNotIn(word, focus.MODES)
+
+    def test_every_offered_mode_is_accepted_by_the_kernel(self):
+        for mode in focus.MODES:
+            with self.subTest(mode=mode):
+                r = focus.new_report(1, "START", 5, mode=mode)
+                self.assertEqual(r["mode"], mode)
+
+    def test_fifteen_minutes_is_offered_first(self):
+        # The owner's roster chose this list, not a productivity
+        # convention: 15 minutes is the window a work day actually leaves.
+        self.assertEqual(focus.LENGTHS[0], 15)
+        for length in focus.LENGTHS:
+            with self.subTest(length=length):
+                focus.new_cycle("s1", length, "2026-10-17T09:00:00")

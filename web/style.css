@@ -367,3 +367,37 @@ select.ctl { padding-right: 8px; }
 @media (prefers-reduced-motion: reduce) {
   .s { transition: none; }
 }
+
+/* --- focus cycle: the two-tap report panel -----------------------------
+   Reuses the measured palette above and introduces no new colour, so the
+   contrast audit in tests/test_web_shell.py still covers every pair here.
+   A drawer: bounded, and collapsed to nothing while hidden, so the
+   transcript never loses its room to it. */
+.fx {
+  background: var(--surface);
+  border: 1px solid var(--frame);
+  border-radius: 8px;
+  padding: 10px 14px;
+}
+.fx-ask { margin: 0 0 8px; color: var(--ink); font-size: .95em; }
+.fx-row {
+  display: flex; align-items: center; gap: 6px;
+  flex-wrap: wrap; margin-top: 6px;
+}
+/* A load key is a real button: 44px so it can be hit, and aria-pressed
+   rather than colour alone carries the selection (WCAG 1.4.1). */
+.fx-key {
+  font: inherit; font-size: .9em;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--outline);
+  border-radius: 6px;
+  min-width: 44px; min-height: 44px;
+  padding: 0 8px; cursor: pointer;
+}
+.fx-key:hover { background: var(--fill-hi); }
+.fx-key[aria-pressed="true"] {
+  background: var(--fill);
+  border-width: 3px;
+  font-weight: 600;
+}

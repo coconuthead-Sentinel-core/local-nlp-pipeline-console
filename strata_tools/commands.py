@@ -24,6 +24,7 @@ COMMANDS = {
     "lexicon": "List the operator tokens and what each one does.",
     "mode": "Switch mode: /mode green | yellow | red.",
     "clear": "Clear the window and what the model recalls.",
+    "focus": "Focus cycle: /focus 15 | 25 | 45 to start, /focus stop to close.",
     "help": "Show this list.",
 }
 

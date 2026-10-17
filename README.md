@@ -104,6 +104,14 @@ answers "Requirement already satisfied", and changes nothing.
   `/clear`, `/help`; `/zone` and `/new` still accepted. The grammar is
   a kernel too (`strata_tools/commands.py`), so an unknown command is
   reported rather than quietly answered by the model.
+- **Focus cycles** — a 15/25/45-minute timer with a live countdown, and
+  an optional two-tap report of how loaded the work *feels* and which
+  mode you are in, at the start and end of a cycle. `/focus` drives it
+  from the message box. It **records and charts; it does not urge** — no
+  streaks, points or targets, and a cycle stopped early is stored as
+  data rather than treated as a failure. What it stores is a
+  **self-report**, not a measurement of cognitive load: the distinction
+  is what makes the data worth keeping.
 - **Graceful degradation** — if Ollama or the model is missing, the
   deterministic template engine answers and the UI says so honestly.
 
