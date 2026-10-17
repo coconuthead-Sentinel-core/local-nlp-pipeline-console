@@ -359,3 +359,102 @@ class HonestyTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class NoPicturesOfferedTests(unittest.TestCase):
+    """The vocabulary is codes. Nothing OFFERS a picture any more.
+
+    Removed 2026-10-17 on the owner's instruction: the emoji were too
+    easy for a person and a language model to read differently. NM-009 is
+    the proof -- one ice cube had come to mean three things across three
+    artefacts, and whichever meaning happened to be listed first decided
+    how every stored row would be re-read.
+
+    Legacy emoji are still RESOLVED (see LegacyTests) so rows already in
+    SQLite stay readable. Resolving an old picture is not offering a new
+    one, and that is the line these tests hold.
+    """
+
+    PICTURE = 0x2500   # above this, a codepoint is a symbol or emoji
+
+    def pictures_in(self, text):
+        return sorted({c for c in text if ord(c) > self.PICTURE})
+
+    def test_no_operator_label_or_instruction_carries_a_picture(self):
+        for op in codex.OPERATORS:
+            with self.subTest(code=op["code"]):
+                self.assertEqual(self.pictures_in(op["label"]), [])
+                self.assertEqual(self.pictures_in(op["instruction"]), [])
+
+    def test_no_action_verb_carries_a_picture(self):
+        for a in codex.ACTIONS:
+            with self.subTest(code=a["code"]):
+                self.assertEqual(self.pictures_in(a["verb"]), [])
+                self.assertEqual(self.pictures_in(a["label"]), [])
+                self.assertEqual(self.pictures_in(a["does"]), [])
+
+    def test_what_the_keyboard_is_handed_contains_no_picture(self):
+        for row in codex.keyboard_rows(5):
+            for code in row:
+                key = codex.display(code)
+                with self.subTest(code=code):
+                    self.assertNotIn("glyph", key)
+                    for value in key.values():
+                        self.assertEqual(self.pictures_in(str(value)), [])
+
+    def test_a_read_back_sentence_contains_no_picture(self):
+        text = codex.reads_as(["INPT", "EXEC"], "GREEN")
+        self.assertEqual(self.pictures_in(text), [])
+
+    def test_the_engine_vocabulary_has_no_picture_and_no_glyph_key(self):
+        import strata_core
+        self.assertEqual(len(strata_core.TOKENS), len(codex.OPERATORS))
+        for t in strata_core.TOKENS:
+            with self.subTest(code=t["code"]):
+                self.assertNotIn("glyph", t)
+                for value in t.values():
+                    self.assertEqual(self.pictures_in(str(value)), [])
+
+    def test_the_shipped_shell_shows_no_picture(self):
+        """index.html and app.js may say the WORD glyph; not draw one."""
+        here = os.path.dirname(os.path.abspath(__file__))
+        for name in ("index.html", "app.js"):
+            path = os.path.join(here, "..", "web", name)
+            with open(path, encoding="utf-8") as fh:
+                body = fh.read()
+            # The source-row emoji that label voice and file controls are
+            # not operator tokens; only the codex vocabulary is in scope.
+            for op in codex.OPERATORS:
+                legacy = op.get("legacy_glyph")
+                if legacy:
+                    with self.subTest(file=name, legacy=op["code"]):
+                        self.assertNotIn(legacy, body)
+
+
+class CodeDetectionTests(unittest.TestCase):
+    """The classifier reads codes, and still resolves an old picture."""
+
+    def setUp(self):
+        import strata_core
+        self.core = strata_core
+        self.node = strata_core.InputNode()
+
+    def test_a_code_in_a_message_is_detected(self):
+        out = self.node.process("EXEC ship the thing")
+        self.assertIn("EXEC", out["glyphs"])
+
+    def test_a_message_with_no_code_detects_nothing(self):
+        self.assertEqual(self.node.process("just a question?")["glyphs"], [])
+
+    def test_a_legacy_picture_still_resolves_to_its_code(self):
+        # Typed from old habit, or read back off a stored row. It must not
+        # be silently stripped of meaning.
+        legacy = next(iter(self.core.LEGACY_CHARS))
+        expected = self.core.LEGACY_CHARS[legacy]
+        out = self.node.process(f"{legacy} do this")
+        self.assertIn(expected, out["glyphs"])
+
+    def test_a_legacy_picture_is_stripped_from_the_residual(self):
+        legacy = next(iter(self.core.LEGACY_CHARS))
+        out = self.node.process(f"{legacy} do this")
+        self.assertNotIn(legacy, out["residual"])

@@ -24,7 +24,7 @@ import os
 import sqlite3
 from datetime import datetime
 
-from strata_tools import focus, session
+from strata_tools import codex, focus, session
 
 # Reading fonts offered to the owner, best-first (ported from Sentinel
 # Forge). CORRECTED 2026-09-01 -- the previous comment here claimed these
@@ -77,27 +77,33 @@ DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "quantum_nexu
 # retain the legacy "glyph" naming.)
 # ═══════════════════════════════════════════════════════════════════════════════
 
-GLYPH_CODEX = {
-    "core": [
-        {"glyph": "🔺", "name": "TRANSFORM",   "function": "Transform input"},
-        {"glyph": "🧊", "name": "STABILIZE",   "function": "Logic / structure"},
-        {"glyph": "🔸", "name": "PROCESS",     "function": "Process"},
-        {"glyph": "⭕", "name": "SENTIMENT",   "function": "Tone / sentiment"},
-        {"glyph": "💠", "name": "REFLECT",     "function": "Self-reference"},
-        {"glyph": "🌀", "name": "EXPAND",      "function": "Iterate / grow"},
-        {"glyph": "🔮", "name": "MAP",         "function": "Concept mapping"},
-        {"glyph": "🥥", "name": "AUTHOR",      "function": "Author intent"},
-        {"glyph": "🤝", "name": "COLLABORATE", "function": "Collaboration"},
-    ]
-}
+# The operator vocabulary is strata_tools/codex.py: nineteen operators, each
+# addressed by a stable four-letter CODE. The emoji table that used to live
+# here was deleted on 2026-10-17 at the owner's instruction -- pictures were
+# too easy for a person and a language model to read differently, which is
+# the whole reason codex.py exists ("so a glyph can stop being one").
+#
+# Nothing OFFERS a picture any more: not the keyboard, not /lexicon, not the
+# classifier. Legacy emoji are still RESOLVED, through codex.LEGACY_RESOLUTION,
+# so a message typed from old habit and -- more importantly -- a row already
+# stored in SQLite still reads. Archive, never delete: retiring a vocabulary
+# must not make the records written in it unreadable.
 
-ALL_GLYPHS = []
-for category in GLYPH_CODEX.values():
-    ALL_GLYPHS.extend(category)
+TOKENS = [
+    {"code": op["code"], "name": op["label"].upper(), "function": op["instruction"]}
+    for op in codex.OPERATORS
+]
 
-# Fast lookups for token detection in the input classifier
-GLYPH_CHARS = {g["glyph"] for g in ALL_GLYPHS}
-GLYPH_LOOKUP = {g["glyph"]: g for g in ALL_GLYPHS}
+#: Kept under the old name so nothing downstream had to be renamed in the
+#: same change that removed the pictures. One change, one reason.
+ALL_GLYPHS = TOKENS
+
+TOKEN_CODES = {t["code"] for t in TOKENS}
+TOKEN_LOOKUP = {t["code"]: t for t in TOKENS}
+
+#: Legacy emoji -> the code that replaced it. Read-back only.
+LEGACY_CHARS = dict(codex.LEGACY_RESOLUTION)
+GLYPH_LOOKUP = TOKEN_LOOKUP
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # LOCAL PERSISTENCE (SQLite — offline, single-file)
@@ -321,12 +327,24 @@ class InputNode:
 
     def process(self, user_input):
         text = user_input.strip()
-        glyphs = [g for g in GLYPH_CHARS if g in text]
+        # Codes, not pictures. A four-letter code is unambiguous to read
+        # and unambiguous to type; an emoji was neither.
+        found = [c for c in TOKEN_CODES if c in text]
+        # An emoji from old habit still resolves to the code that replaced
+        # it, so a message is never silently stripped of its meaning.
+        legacy = [ch for ch in LEGACY_CHARS if ch in text]
+        for ch in legacy:
+            code = LEGACY_CHARS[ch]
+            if code not in found:
+                found.append(code)
+        glyphs = found
 
         # Strip tokens to see how much plain text is left underneath
         residual = text
-        for g in glyphs:
-            residual = residual.replace(g, "")
+        for token in glyphs:
+            residual = residual.replace(token, "")
+        for ch in legacy:
+            residual = residual.replace(ch, "")
         residual = residual.strip()
 
         is_command = text.startswith("/")

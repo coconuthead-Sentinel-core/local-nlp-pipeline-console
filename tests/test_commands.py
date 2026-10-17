@@ -78,13 +78,26 @@ class ParseTests(unittest.TestCase):
 
 
 class LexiconTests(unittest.TestCase):
-    def test_every_real_glyph_is_listed(self):
+    def test_every_token_is_listed_by_its_code(self):
         text = commands.lexicon_text(ALL_GLYPHS)
-        for g in ALL_GLYPHS:
-            with self.subTest(glyph=g["name"]):
-                self.assertIn(g["glyph"], text)
-                self.assertIn(g["name"], text)
-                self.assertIn(g["function"], text)
+        for t in ALL_GLYPHS:
+            with self.subTest(token=t["code"]):
+                self.assertIn(t["code"], text)
+                self.assertIn(t["name"], text)
+                self.assertIn(t["function"], text)
+
+    def test_the_lexicon_prints_no_pictures(self):
+        """The emoji vocabulary was removed on 2026-10-17.
+
+        One picture had come to mean three different things across three
+        artefacts (NM-009), which is the ambiguity a four-letter code
+        cannot have. If an emoji ever reappears in the lexicon, this
+        fails -- the vocabulary is codes now, and a picture offered
+        beside a code invites the same drift back in.
+        """
+        text = commands.lexicon_text(ALL_GLYPHS)
+        offenders = [c for c in text if ord(c) > 0x2500]
+        self.assertEqual(offenders, [], f"pictures in the lexicon: {offenders}")
 
     def test_an_empty_lexicon_says_so_rather_than_rendering_blank(self):
         self.assertIn("No tokens", commands.lexicon_text([]))

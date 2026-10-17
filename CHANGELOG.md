@@ -12,6 +12,46 @@ root cause and the guard.
 
 ## [Unreleased]
 
+### Removed — the emoji operator vocabulary (2026-10-17)
+
+Owner's instruction, given on inspection: the pictures were too easy for
+a person and a language model to read differently, and were to be erased.
+
+- **`GLYPH_CODEX` is deleted from `strata_core.py`** — the nine-emoji
+  table the input classifier matched on and `/lexicon` printed. The
+  engine vocabulary is now `TOKENS`, derived from `codex.OPERATORS`:
+  nineteen operators addressed by a stable four-letter **code**. This is
+  what `codex.py` was built for on 2026-10-15 — *"so a glyph can stop
+  being one"* — and the engine had simply never been moved over.
+- **The classifier reads codes.** `EXEC ship the thing` is detected as
+  `EXEC`. NM-009 is the argument: one ice cube had come to mean three
+  different things across three artefacts, and whichever meaning
+  happened to be listed first decided how every stored row would be
+  re-read. A four-letter code cannot have that ambiguity.
+- **`/lexicon` prints codes**, never pictures.
+- **The keyboard never showed one.** Ticket 6 was built on
+  `codex.display()`, which returns label, zone and icon name and no
+  glyph character at all. Confirmed, not assumed: a test now walks every
+  key the keyboard is handed and fails on any codepoint above U+2500.
+
+**What was deliberately kept.** `codex.LEGACY_RESOLUTION` still maps each
+retired emoji to the code that replaced it, and the classifier still
+resolves one — so a message typed from old habit, and more importantly a
+row **already stored in SQLite**, still reads. Archive, never delete:
+retiring a vocabulary must not make the records written in it unreadable.
+Resolving an old picture is not offering a new one, and that is the line
+the new tests hold.
+
+**Gate:** `tests/test_codex.py` fails if a picture appears in any offered
+surface — operator labels and instructions, action verbs, the keyboard
+payload, a `reads_as()` sentence, the engine's `TOKENS`, or either shipped
+shell file. Four detection tests cover codes found, nothing found, a
+legacy picture resolved, and a legacy picture stripped from the residual.
+
+**Still owed:** the replacement glyph set. The owner has one; it is not in
+this repository, not in `Claude AI`, and not in the session that made this
+change. Nothing was invented to fill the gap — the vocabulary is codes
+until he supplies it. See [`docs/OPEN_DECISIONS.md`](docs/OPEN_DECISIONS.md) OD-002.
 ### Added — the glyph keyboard and the cycle summary (2026-10-17)
 
 The last two kernels with no control attached. Both are now reachable.

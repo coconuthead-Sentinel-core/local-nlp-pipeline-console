@@ -112,7 +112,7 @@ class Api:
             "fontFamily": db.get_state("web_font", "system"),
             "fontSize": int(db.get_state("web_font_size", "17") or 17),
             "autoread": db.get_state("autoread", "0") == "1",
-            "glyphs": [dict(g) for g in ALL_GLYPHS],
+            "tokens": [dict(t) for t in ALL_GLYPHS],
             "sources": dict(self._sources),
             "attachment": self._attachment_view(),
         }

@@ -95,6 +95,39 @@ the reference and stays until the work lands.
 
 ---
 
+## OD-002 — the replacement glyph set has not been supplied
+
+**Status:** open, waiting on the owner · **Opened:** 2026-10-17
+**Blocks:** nothing shipped; the console works on codes meanwhile
+
+The emoji operator vocabulary was erased on 2026-10-17 at the owner's
+instruction. He also asked for a **new** set to be added in its place,
+and said he had given it to me.
+
+I do not have it. Searched: this repository, `Claude AI` and its
+`Portfolio\boards` folder, and the session that performed the removal.
+No list of replacement glyphs exists in any of them. It was most likely
+given in an earlier session whose transcript this one cannot read.
+
+**Nothing was invented to fill the gap.** A guessed vocabulary would be
+worse than none: every guessed symbol would need retiring later, and
+retiring the last set is what this change cost.
+
+**What the console does meanwhile.** It runs on the four-letter codes —
+`EXEC`, `ANLZ`, `SYNT` and the rest — which are what `codex.py` was
+designed around and what every test now asserts. This is a working
+state, not a broken one. The keyboard, `/lexicon`, the classifier and
+the read-back sentence all use codes.
+
+**To close this:** paste the glyph list. For each entry I need the symbol
+and which operator it belongs to; if a symbol is new rather than a
+replacement, its label, zone and what it should instruct the model to do.
+Then they go in as a display layer over the codes — the code stays the
+identity, so a symbol can be changed again later without touching a
+single stored row.
+
+---
+
 ## Branch state while OD-001 is open
 
 | Branch | Why it exists | Deletable? |

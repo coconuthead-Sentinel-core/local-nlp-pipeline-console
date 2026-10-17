@@ -68,16 +68,24 @@ def unknown_message(text):
     return f"Unknown command: {(text or '').strip()}. Try /help"
 
 
-def lexicon_text(glyphs):
+def lexicon_text(tokens):
     """The operator token lexicon as displayable text. Pure.
 
-    ``glyphs`` is a sequence of mappings with 'glyph', 'name' and
-    'function' keys -- ``strata_core.ALL_GLYPHS`` or anything shaped
-    like it.
+    ``tokens`` is a sequence of mappings with 'code', 'name' and
+    'function' keys -- ``strata_core.TOKENS`` or anything shaped like it.
+
+    Codes, not pictures. The emoji vocabulary was removed on 2026-10-17:
+    one picture had come to mean three different things across three
+    artefacts, which is exactly the ambiguity a four-letter code cannot
+    have. An entry still shaped the old way is handled rather than
+    crashing, but nothing here ever prints a picture.
     """
     lines = ["### Operator Token Lexicon", ""]
-    for g in glyphs or []:
-        lines.append(f"- {g['glyph']}  **{g['name']}** — {g['function']}")
+    for t in tokens or []:
+        code = t.get("code") or t.get("name") or "?"
+        name = t.get("name", code)
+        what = t.get("function", "")
+        lines.append(f"- `{code}`  **{name}** \u2014 {what}".rstrip())
     if len(lines) == 2:
         lines.append("_No tokens are defined._")
     return "\n".join(lines)
