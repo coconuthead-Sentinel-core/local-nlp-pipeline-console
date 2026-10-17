@@ -207,6 +207,125 @@ OPERATORS = (
 # meant.
 
 # ---------------------------------------------------------------------------
+# ACTIONS -- the verbs.
+#
+# **Why this block exists.** The owner laid three keys beside each other --
+# assistant, input, data -- and observed that "assistant input data in green
+# zone" reads better than any string of operators. He was right, and the
+# reason is grammatical: that is a SENTENCE. Actor, verb, object, mode.
+#
+# The nineteen operators above are MODIFIERS. They say how the assistant
+# should answer. A keyboard of nothing but modifiers is a pile of adverbs
+# with no verb, which is exactly why it never read as language.
+#
+# So the parts of speech are three, and they must not share a namespace
+# again -- sharing one is what let a glyph mean three things:
+#
+#   ACTIONS    verbs. What the application DOES.          Input, Save
+#   OPERATORS  modifiers. How the assistant ANSWERS.      Execute, Analyze
+#   ZONES      mode. The state the work is IN.            Green, Yellow, Red
+#
+# The object of the sentence -- "data", "note", the thing being acted on --
+# is ordinary typed text, not a key. Adding a fourth block of nouns would
+# mean inventing a vocabulary for everything a person might mention.
+#
+# ``destructive`` is carried and is False on every row. SCOPE.md §3:
+# "Archive, never delete. No owner data is destroyed by any control." A
+# Trash key was proposed and refused -- it would either break that rule or
+# lie about what it does. ARCH archives; nothing here deletes.
+# ---------------------------------------------------------------------------
+ACTIONS = (
+    {"verb": "take it in", "code": "INPT", "number": 1, "label": "Input", "icon": "file-import",
+     "destructive": False,
+     "does": "Take material in: an uploaded file, a pasted passage, a note."},
+
+    {"verb": "find it", "code": "FIND", "number": 2, "label": "Find", "icon": "search",
+     "destructive": False,
+     "does": "Retrieve from what is already stored, by tag, zone or text."},
+
+    {"verb": "search the web", "code": "WEBS", "number": 3, "label": "Web", "icon": "world",
+     "destructive": False,
+     "does": "Consult the web for this message. Opt-in, per message."},
+
+    {"verb": "save it", "code": "SAVE", "number": 4, "label": "Save", "icon": "device-floppy",
+     "destructive": False,
+     "does": "Persist the current work as a record that can be found again."},
+
+    {"verb": "export it", "code": "EXPT", "number": 5, "label": "Export", "icon": "file-export",
+     "destructive": False,
+     "does": "Write out a readable copy. The store stays as it is."},
+
+    {"verb": "archive it", "code": "ARCH", "number": 6, "label": "Archive", "icon": "archive",
+     "destructive": False,
+     "does": "Retire from view. The rows stay; a floor is raised, not a "
+             "record removed."},
+
+    {"verb": "clear", "code": "CLER", "number": 7, "label": "Clear", "icon": "eraser",
+     "destructive": False,
+     "does": "Clear the transcript AND what the model recalls, together. "
+             "Clearing only the view would leave the assistant quoting the "
+             "conversation just cleared."},
+
+    {"verb": "halt", "code": "HALT", "number": 8, "label": "Halt", "icon": "player-stop",
+     "destructive": False,
+     "does": "Stop the current operation. Nothing already recorded is lost."},
+)
+
+BY_ACTION = {a["code"]: a for a in ACTIONS}
+
+
+def action(code):
+    """The action with this code, or None. Case-insensitive."""
+    if not code:
+        return None
+    return BY_ACTION.get(code.strip().upper())
+
+
+def part_of_speech(code):
+    """'ACTION', 'OPERATOR', or None. The two namespaces stay disjoint."""
+    if action(code) is not None:
+        return "ACTION"
+    if operator(code) is not None:
+        return "OPERATOR"
+    return None
+
+
+def reads_as(codes, zone=None):
+    """A code sequence read back as plain English, for the sequence bar.
+
+    The point of the three blocks: ``["INPT", "EXEC"]`` with zone GREEN
+    reads "Input, then execute -- in the green zone." A person can check
+    what they typed without consulting a legend, which is the test the
+    old keyboard failed.
+    """
+    verbs, modifiers, unknown = [], [], []
+    for code in codes or ():
+        kind = part_of_speech(code)
+        if kind == "ACTION":
+            verbs.append(action(code)["verb"])
+        elif kind == "OPERATOR":
+            modifiers.append(operator(code)["label"].lower())
+        else:
+            unknown.append(code)
+
+    if verbs:
+        sentence = ", then ".join(verbs)
+        if modifiers:
+            sentence += " -- " + " and ".join(modifiers)
+    elif modifiers:
+        sentence = " and ".join(modifiers)
+    else:
+        sentence = "nothing selected"
+
+    sentence = sentence[0].upper() + sentence[1:]
+    if zone in ZONE_DISPLAY:
+        sentence += f", in the {ZONE_DISPLAY[zone]['label'].lower()} zone"
+    if unknown:
+        sentence += f" (unrecognised: {', '.join(unknown)})"
+    return sentence
+
+
+# ---------------------------------------------------------------------------
 # Codex v2, frozen 2026-10-15. Superseded, not deleted.
 #
 # This is the shipped eighteen as they stood, kept so that a row written
@@ -374,7 +493,8 @@ def unverified_icons():
     nobody confirmed must not pass for one that was. Checking them is a
     bounded job and this is where its result belongs.
     """
-    return sorted(op["icon"] for op in OPERATORS)
+    return sorted([op["icon"] for op in OPERATORS] +
+                  [a["icon"] for a in ACTIONS])
 
 
 def validate():
@@ -419,4 +539,33 @@ def validate():
             problems.append(f"{code}: icon must be one icon name")
         if not op["instruction"].strip():
             problems.append(f"{code}: no instruction")
+
+    # ACTIONS -- the verbs. A separate namespace on purpose.
+    action_codes = [a["code"] for a in ACTIONS]
+    action_numbers = [a["number"] for a in ACTIONS]
+    if len(set(action_codes)) != len(action_codes):
+        problems.append("duplicate action code")
+    if sorted(action_numbers) != list(range(1, len(ACTIONS) + 1)):
+        problems.append("action numbers are not a contiguous run from 1")
+
+    # The two namespaces must not overlap. Sharing one is what let a single
+    # glyph come to mean three different things.
+    collisions = set(action_codes) & set(codes)
+    if collisions:
+        problems.append(f"code in both namespaces: {sorted(collisions)}")
+
+    for act in ACTIONS:
+        code = act["code"]
+        if len(code) != CODE_LENGTH or not code.isalpha() or not code.isupper():
+            problems.append(f"{code}: code must be {CODE_LENGTH} uppercase letters")
+        if act["destructive"]:
+            problems.append(
+                f"{code}: destructive -- SCOPE.md §3 is archive, never delete"
+            )
+        if not act["does"].strip():
+            problems.append(f"{code}: no description of what it does")
+        if not act.get("verb", "").strip():
+            problems.append(f"{code}: no verb form for the sequence bar")
+        if not act["label"] or " " in act["label"]:
+            problems.append(f"{code}: label must be one word")
     return problems

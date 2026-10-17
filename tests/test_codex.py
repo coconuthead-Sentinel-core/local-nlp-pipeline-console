@@ -236,6 +236,99 @@ class DisplayTests(unittest.TestCase):
             codex.keyboard_rows(0)
 
 
+class ActionTests(unittest.TestCase):
+    """The verbs. A separate part of speech from the operators."""
+
+    def test_the_two_namespaces_never_overlap(self):
+        """Sharing one namespace is what let a glyph mean three things."""
+        op_codes = {op["code"] for op in codex.OPERATORS}
+        act_codes = {a["code"] for a in codex.ACTIONS}
+        self.assertEqual(op_codes & act_codes, set())
+
+    def test_part_of_speech_tells_them_apart(self):
+        self.assertEqual(codex.part_of_speech("INPT"), "ACTION")
+        self.assertEqual(codex.part_of_speech("EXEC"), "OPERATOR")
+        self.assertIsNone(codex.part_of_speech("ZZZZ"))
+
+    def test_no_action_is_destructive(self):
+        """SCOPE.md §3: archive, never delete.
+
+        A Trash key was proposed and refused. It would either break that
+        criterion or lie about what it does.
+        """
+        for act in codex.ACTIONS:
+            self.assertFalse(act["destructive"], act["code"])
+
+    def test_there_is_no_delete_or_trash_verb(self):
+        for banned in ("TRSH", "DELE", "DROP", "PURG", "WIPE"):
+            self.assertIsNone(codex.action(banned))
+        for act in codex.ACTIONS:
+            self.assertNotIn("delete", act["does"].lower(), act["code"])
+
+    def test_archive_describes_raising_a_floor_not_removing_rows(self):
+        self.assertIn("rows stay", codex.action("ARCH")["does"].lower())
+
+    def test_clear_moves_both_halves_together(self):
+        """A Clear that cleared only the view would quote what it cleared."""
+        does = codex.action("CLER")["does"].lower()
+        self.assertIn("recall", does)
+
+    def test_action_lookup_is_case_insensitive(self):
+        self.assertEqual(codex.action("inpt"), codex.action("INPT"))
+        self.assertIsNone(codex.action(""))
+        self.assertIsNone(codex.action(None))
+
+    def test_action_codes_are_four_uppercase_letters(self):
+        for act in codex.ACTIONS:
+            self.assertEqual(len(act["code"]), codex.CODE_LENGTH)
+            self.assertTrue(act["code"].isalpha() and act["code"].isupper())
+
+
+class ReadabilityTests(unittest.TestCase):
+    """The test the old keyboard failed: can a person read back what they typed?"""
+
+    def test_a_verb_and_a_modifier_read_as_a_sentence(self):
+        """The sentence uses each action's VERB form, not its key label.
+
+        A key reads "Web" because that is what it is; the sentence reads
+        "search the web" because that is what it does. "Find, then web"
+        is not English, and the readability claim has to survive being
+        read aloud.
+        """
+        said = codex.reads_as(["INPT", "EXEC"], zone="GREEN")
+        self.assertEqual(said, "Take it in -- execute, in the green zone")
+
+    def test_every_action_has_a_verb_form_distinct_from_its_label(self):
+        for act in codex.ACTIONS:
+            self.assertTrue(act["verb"].strip(), act["code"])
+
+    def test_a_noun_label_still_reads_as_a_verb_in_the_sentence(self):
+        said = codex.reads_as(["WEBS"])
+        self.assertEqual(said, "Search the web")
+        self.assertEqual(codex.action("WEBS")["label"], "Web")
+
+    def test_verbs_come_before_modifiers_whatever_the_typing_order(self):
+        a = codex.reads_as(["EXEC", "INPT"])
+        b = codex.reads_as(["INPT", "EXEC"])
+        self.assertEqual(a, b)
+
+    def test_several_verbs_are_sequenced(self):
+        self.assertIn("then", codex.reads_as(["INPT", "SAVE"]))
+
+    def test_nothing_selected_says_so(self):
+        self.assertEqual(codex.reads_as([]), "Nothing selected")
+        self.assertEqual(codex.reads_as(None), "Nothing selected")
+
+    def test_an_unrecognised_code_is_named_not_swallowed(self):
+        said = codex.reads_as(["INPT", "ZZZZ"])
+        self.assertIn("ZZZZ", said)
+        self.assertIn("unrecognised", said)
+
+    def test_an_unknown_zone_is_simply_omitted(self):
+        said = codex.reads_as(["INPT"], zone="PURPLE")
+        self.assertNotIn("purple", said.lower())
+
+
 class HonestyTests(unittest.TestCase):
     """Claims this module is not allowed to make."""
 
@@ -248,7 +341,8 @@ class HonestyTests(unittest.TestCase):
         """
         self.assertEqual(
             sorted(codex.unverified_icons()),
-            sorted(op["icon"] for op in codex.OPERATORS),
+            sorted([op["icon"] for op in codex.OPERATORS] +
+                   [a["icon"] for a in codex.ACTIONS]),
         )
 
     def test_frozen_v2_still_holds_the_shipped_eighteen(self):
