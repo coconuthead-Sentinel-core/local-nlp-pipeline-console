@@ -12,6 +12,31 @@ root cause and the guard.
 
 ## [Unreleased]
 
+### Removed — the token keys, leaving the keyboard empty (2026-10-17)
+
+Owner's instruction, straight after the pictures came off: with the emoji
+gone the keys are not wanted either — the panel should be blank and
+refilled with a vocabulary he is choosing. **Version 18 of the Artifact.**
+
+- `KBD_BANKS` is now `[]` and `KBD_ALT_DIGITS` is `{}`. No key is built,
+  and no Alt-shortcut types a token the keyboard no longer shows.
+- **The machinery is deliberately left standing.** `kbdKey`,
+  `kbdTokens`, the grammar layer, the sequence bar and the Recent row
+  are all still here. Refilling is a DATA change — add a bank to
+  `KBD_BANKS` — not a rebuild, and the shape is documented in a comment
+  at the empty list.
+- **An empty panel says it is empty.** A blank drawer with no
+  explanation reads as a control that failed to load, which is the
+  defect class this shop names first. It states that the set was
+  removed, that a new one has not arrived, and that the message box
+  works as normal meanwhile.
+- The `/keyboard` command and the button tooltip say the same thing
+  rather than advertising keys that are not there.
+
+The operator vocabulary itself (`GLYPHS`) is untouched, so **knowledge-
+base cards already saved against it still resolve** — both as written
+tokens and as the retired emoji. Emptying the keyboard removed a way to
+TYPE the vocabulary, not the vocabulary.
 ### Removed — the emoji keys on the browser keyboard (2026-10-17)
 
 Owner's instruction, with a screenshot of the keyboard: the eighteen
@@ -343,9 +368,9 @@ desktop shell, engine, tools and tests are untouched.
 ### Added
 - **`strata_console_browser.html`** at the repository root — byte-for-byte
   snapshot of the Strata Console browser Artifact as served, the
-  publish-time `<head>` included. **Re-filed 2026-10-17 from Version 17:
-  234,356 bytes, SHA256**
-  `edcd66bcbb31b4d7779ce3cf27f4eb67db6513402cd29dbd81699a96247c1142`.
+  publish-time `<head>` included. **Re-filed 2026-10-17 from Version 18:
+  235,333 bytes, SHA256**
+  `0cfe0684eac7a1b4311f2ac47f6ffdbfab2bcc6307c00a002a730d96b8fa2cc1`.
   Filed as the permanent on-repo reference alongside the Artifact link
   and the Google Docs / OneDrive record; a diff against that hash tells
   you whether this file still matches the published Artifact.

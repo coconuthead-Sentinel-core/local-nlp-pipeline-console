@@ -413,6 +413,10 @@ select.ctl { padding-right: 8px; }
   overflow-y: auto;
 }
 .kbd-rows { display: flex; flex-direction: column; gap: 4px; }
+.kbd-empty {
+  margin: 0; padding: 6px 2px;
+  color: var(--ink-mute); font-size: .9em; max-width: 68ch;
+}
 .kbd-row { display: flex; gap: 6px; flex-wrap: wrap; }
 .kbd-lbl {
   font-size: .72em; color: var(--ink-mute);
@@ -680,7 +684,7 @@ table.sh-grid { border-collapse: collapse; }
 <form id="composer" class="composer" autocomplete="off">
   <button id="kbd-open" class="ctl" type="button" aria-expanded="false"
           aria-controls="kbd-panel"
-          title="On-screen codex keyboard — tap a token into the message. Alt+K toggles it; Alt+1–0 type the core ten anywhere.">
+          title="On-screen token keyboard — currently empty, awaiting a new vocabulary. Alt+K toggles it.">
     Tokens
   </button>
   <label class="sr" for="msg">Message</label>
@@ -926,7 +930,7 @@ const COMMANDS = {
   mode:    'Switch mode: /mode green | yellow | red.',
   kb:      'Knowledge base: /kb — counts; /kb open | close | export (current tab → clipboard, full bodies).',
   avatar:  'Avatar: /avatar — open or close the full view of the console state.',
-  keyboard: 'Glyph keyboard: /keyboard — open the on-screen codex keyboard (Alt+K; Alt+1–0 type the core ten); /keyboard close.',
+  keyboard: 'Token keyboard: /keyboard — open the on-screen keyboard (Alt+K); /keyboard close. Currently empty.',
   sheet:   'Sheets: /sheet — open or close the spreadsheet drawer; /sheet export — copy the active sheet as CSV.',
   overlay: 'Omega-1 overlays: /overlay — list modes; /overlay <name> | off.',
   find:    'Find: /find H5 — jump to a cell; /find <keywords> — search all five stores. Opens the drawer with results.',
@@ -2263,10 +2267,10 @@ function runCommand(text) {
     }
     case 'keyboard': {
       const arg = c.argument.toLowerCase();
-      if (arg === 'close') { kbdToggle(false); return { handled: true, message: '⌨ Glyph keyboard closed.' }; }
+      if (arg === 'close') { kbdToggle(false); return { handled: true, message: 'Token keyboard closed.' }; }
       kbdToggle(true);
-      return { handled: true, message: '⌨ Glyph keyboard open — tap a token into the message box. ' +
-               'Alt+1–0 type the core ten from anywhere; Alt+K toggles the drawer.' };
+      return { handled: true, message: 'Token keyboard open — it is empty. The previous '
+               + 'set was removed on 2026-10-17; a new one has not been added yet.' };
     }
     case 'sheet': {
       const arg = c.argument.toLowerCase();
@@ -3312,15 +3316,24 @@ setInterval(avTick, avReduced ? 1000 : 120);
  * trigger; the handoff's auto-execute-on-chain-completion was declined
  * because an input device must never fire the send. */
 
-const KBD_BANKS = [
-  ['Codex v2', ['🔺', '🧊', '🔸', '🌀', '🥥', '💠', '⚪', '🌊', '🎯']],
-  ['Legacy + v3.8 expansion', ['⭕', '🔮', '🤝', '🔷', '🐍', '⚡', '🌳', '🔄', '🔗']],
-];
+/* EMPTY, on the owner's instruction (2026-10-17). The eighteen token
+ * keys were removed so the keyboard can be refilled from scratch with a
+ * vocabulary he is choosing. Deliberately an empty LIST rather than
+ * deleted machinery: kbdKey, kbdTokens, the grammar layer and the
+ * sequence bar are all still here and still tested, so refilling is a
+ * data change -- add a bank below -- and not a rebuild.
+ *
+ * Shape of a bank, for when it is refilled:
+ *     ['Bank label', ['KEY', 'KEY', ...]]
+ * where each entry matches an identifier in GLYPHS. */
+const KBD_BANKS = [];
 
 /* The spec's number-row ten, kept exactly as filed — reached as
  * Alt+digit, because a bare digit must stay a digit while typing. */
-const KBD_ALT_DIGITS = { 1: '🔺', 2: '🧊', 3: '🔸', 4: '⭕', 5: '🔷',
-                         6: '💠', 7: '🌀', 8: '🔮', 9: '🐍', 0: '🌊' };
+/* Empty with the banks. A shortcut that types a key the keyboard no
+ * longer shows would be a control acting on a vocabulary the owner
+ * cannot see. */
+const KBD_ALT_DIGITS = {};
 
 const KBD_OPS = [
   ['→', 'then — sequential chain'],
@@ -3470,6 +3483,20 @@ function kbdRender() {
   const panel = $('kbd-panel');
   if (!panel || panel.hidden) return;
   panel.innerHTML = '';
+
+  /* No vocabulary yet. Say so plainly and stop -- an empty panel with no
+     explanation reads as a control that failed to load, which is the
+     defect this shop names first. */
+  if (!KBD_BANKS.length) {
+    const empty = document.createElement('p');
+    empty.className = 'kbd-empty';
+    empty.textContent = 'The keyboard is empty. The previous token set was '
+      + 'removed on 2026-10-17 and a new one has not been added yet — '
+      + 'until it is, type into the message box as normal.';
+    panel.appendChild(empty);
+    return;
+  }
+
   const rows = document.createElement('div');
   rows.className = 'kbd-rows';
   const recent = kbdRecentList();
