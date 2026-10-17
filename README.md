@@ -280,6 +280,10 @@ Engineering records live in `docs/`: [SCOPE.md](docs/SCOPE.md) (baselined),
 [TRANSFER_CATALOG.md](docs/TRANSFER_CATALOG.md), which records what was
 taken from Sentinel Forge and, just as deliberately, what was not.
 
+[OPEN_DECISIONS.md](docs/OPEN_DECISIONS.md) carries anything waiting on
+an owner decision, so a judgement call is never mistaken for work
+nobody noticed.
+
 ## Honest scope
 
 This is applied systems engineering, not novel research. The model is a
