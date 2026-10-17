@@ -431,6 +431,12 @@ select.ctl { padding-right: 8px; }
 .kbd-key:hover { background: #242B33; }
 .kbd-key:active { transform: scale(.96); }
 .kbd-key .kg { font-size: 1.15em; line-height: 1.2; }
+.kbd-key .kn-big {
+  font-size: .8em; letter-spacing: .02em; color: var(--ink);
+  text-transform: uppercase; white-space: normal; text-align: center;
+  line-height: 1.15;
+}
+.kbd-key { min-width: 88px; }
 .kbd-key .kn {
   font-size: .55em; letter-spacing: .04em; color: var(--ink-mute);
   text-transform: uppercase; white-space: nowrap;
@@ -674,8 +680,8 @@ table.sh-grid { border-collapse: collapse; }
 <form id="composer" class="composer" autocomplete="off">
   <button id="kbd-open" class="ctl" type="button" aria-expanded="false"
           aria-controls="kbd-panel"
-          title="On-screen codex keyboard — tap glyphs into the message. Alt+K toggles it; Alt+1–0 type the core ten glyphs anywhere.">
-    <span aria-hidden="true">⌨</span> Glyphs
+          title="On-screen codex keyboard — tap a token into the message. Alt+K toggles it; Alt+1–0 type the core ten anywhere.">
+    Tokens
   </button>
   <label class="sr" for="msg">Message</label>
   <textarea id="msg" rows="1" placeholder="Type a message, or press Speak…"></textarea>
@@ -832,9 +838,20 @@ const store = (() => {
 
 function classifyInput(userInput) {            /* InputNode */
   const text = userInput.trim();
-  const glyphs = GLYPHS.filter(g => text.includes(g.glyph)).map(g => g.glyph);
+  /* Two spellings, one meaning. The keyboard types [EXECUTE]; a message
+     or a stored card may still carry the retired emoji. Both resolve to
+     the same operator, so retiring the pictures did not make anything
+     already written unreadable. */
+  const upper = text.toUpperCase();
+  const hits = GLYPHS.filter(g =>
+    text.includes(g.glyph) || upper.includes(tokenOf(g.glyph).toUpperCase()));
+  const glyphs = hits.map(g => g.glyph);
   let residual = text;
-  for (const g of glyphs) residual = residual.split(g).join('');
+  for (const g of hits) {
+    residual = residual.split(g.glyph).join('');
+    residual = residual.split(tokenOf(g.glyph)).join('');
+    residual = residual.split(tokenOf(g.glyph).toUpperCase()).join('');
+  }
   residual = residual.trim();
 
   const isCommand = text.startsWith('/');
@@ -888,12 +905,12 @@ function synthesizeTemplate(d, routePath, context, tone, currentZone) {
   const snippet = d.text.trim().slice(0, 80);
 
   const summary = d.glyphs.length
-    ? `Received ${d.glyphs.length} operator token(s) ${d.glyphs.join(' ')} + '${snippet}' | Intent: ${d.intent} | Mode: ${currentZone}`
+    ? `Received ${d.glyphs.length} operator token(s) ${d.glyphs.map(tokenOf).join(' ')} + '${snippet}' | Intent: ${d.intent} | Mode: ${currentZone}`
     : `Input: '${snippet}' | Intent: ${d.intent} | Route: ${routePath} | Mode: ${currentZone}`;
 
   let description = ROUTE_DESC[routePath] || ROUTE_DESC.reflective;
   if (d.glyphMeanings.length) {
-    description += ' Active tokens: ' + d.glyphMeanings.map(m => `${m.glyph}=${m.fn}`).join(', ') + '.';
+    description += ' Active tokens: ' + d.glyphMeanings.map(m => `${tokenOf(m.glyph)}=${m.fn}`).join(', ') + '.';
   }
 
   const comments = `[${label} tone — ${voice}] ` + (context || 'No prior context.');
@@ -942,9 +959,9 @@ function helpText() {
 }
 
 function lexiconText() {
-  const lines = ['### Codex Glyph Legend (v2)', ''];
+  const lines = ['### Operator token legend', ''];
   for (const g of GLYPHS) {
-    lines.push(`- ${g.glyph}  **${g.name}** — ${g.fn}` +
+    lines.push(`- \`${tokenOf(g.glyph)}\`  **${g.name}** — ${g.fn}` +
       (g.zone ? ` · zone ${g.zone}` : '') +
       (g.load ? ` · load ${g.load[0]}–${g.load[1]}` : '') +
       (g.x38 ? ' · v3.8 expansion' : ''));
@@ -2248,7 +2265,7 @@ function runCommand(text) {
       const arg = c.argument.toLowerCase();
       if (arg === 'close') { kbdToggle(false); return { handled: true, message: '⌨ Glyph keyboard closed.' }; }
       kbdToggle(true);
-      return { handled: true, message: '⌨ Glyph keyboard open — tap glyphs into the message box. ' +
+      return { handled: true, message: '⌨ Glyph keyboard open — tap a token into the message box. ' +
                'Alt+1–0 type the core ten from anywhere; Alt+K toggles the drawer.' };
     }
     case 'sheet': {
@@ -3372,9 +3389,17 @@ function kbdBackspace() {
   kbdSeqUpdate();
 }
 
+function tokenOf(glyph) {
+  /* The text a key types. A written token survives copy-paste, search,
+     a screen reader and a plain-text export; an emoji survives none of
+     them reliably. */
+  const g = GLYPHS.find((x) => x.glyph === glyph);
+  return g ? '[' + g.name.replace(/_/g, ' ') + ']' : glyph;
+}
+
 function kbdPress(glyph) {
   kbdRemember(glyph);
-  insertIntoMsg(glyph);
+  insertIntoMsg(tokenOf(glyph));
   if (kbdOpenState) kbdRender();   // the Recent row updates
 }
 
@@ -3391,10 +3416,15 @@ function kbdKey(glyph) {
   b.type = 'button';
   b.className = 'kbd-key';
   const name = g ? g.name.replace(/_/g, ' ') : glyph;
-  b.innerHTML = '<span class="kg" aria-hidden="true">' + esc(glyph) + '</span>' +
-                '<span class="kn">' + esc(name) + '</span>';
-  b.setAttribute('aria-label', name + ' glyph');
-  let title = glyph + ' ' + name + (g && g.fn ? ' — ' + g.fn : '');
+  /* Names, not pictures (2026-10-17, owner's instruction). The emoji
+     were too easy for a person and a language model to read
+     differently; a written name cannot be misread. The glyph character
+     remains the INTERNAL identity, so stored cards, the interaction
+     matrix and the avatar are untouched -- nothing is shown, and
+     nothing already saved is broken. */
+  b.innerHTML = '<span class="kn-big">' + esc(name) + '</span>';
+  b.setAttribute('aria-label', name + ' token');
+  let title = name + (g && g.fn ? ' — ' + g.fn : '');
   if (g && g.zone) title += ' · zone ' + g.zone;
   if (g && g.load) title += ' · load ' + g.load[0] + '–' + g.load[1];
   if (g && g.instr) title += '\n' + g.instr;
@@ -3476,12 +3506,37 @@ function kbdRender() {
  * the three chain operators, in order; everything else is prose and
  * passes through untouched. */
 function kbdTokens(text) {
+  /* Reads BOTH spellings in one left-to-right pass: the written token
+     the keyboard now types, and the retired emoji a stored card or an
+     old message may still carry. Longest match wins, so [GOLDEN SOURCE]
+     is never read as [GOLDEN] plus prose. */
   const byChar = new Map(GLYPHS.map((g) => [g.glyph, g]));
+  const byToken = GLYPHS
+    .map((g) => [Array.from(tokenOf(g.glyph).toUpperCase()), g])
+    .sort((a, b) => b[0].length - a[0].length);
   const ops = new Set(['→', '↔', '+']);
+  /* Array.from, not src[i]: an emoji is a surrogate PAIR, and indexing a
+     string by number splits it in half -- which silently stopped the
+     retired pictures being recognised at all. Code points, always. */
+  const chars = Array.from(String(text || ''));
+  const upper = chars.map((c) => c.toUpperCase());
   const out = [];
-  for (const ch of Array.from(String(text || ''))) {
+  let i = 0;
+  while (i < chars.length) {
+    let matched = false;
+    for (const [tok, g] of byToken) {
+      if (tok.every((tc, k) => upper[i + k] === tc)) {
+        out.push({ glyph: g });
+        i += tok.length;
+        matched = true;
+        break;
+      }
+    }
+    if (matched) continue;
+    const ch = chars[i];
     if (byChar.has(ch)) out.push({ glyph: byChar.get(ch) });
     else if (ops.has(ch)) out.push({ op: ch });
+    i += 1;
   }
   return out;
 }
@@ -3492,22 +3547,23 @@ function kbdTokens(text) {
 function kbdVerdict(tokens) {
   const glyphs = tokens.filter((t) => t.glyph);
   const notes = [];
-  if (glyphs.length > 7) notes.push('over 7 glyphs — the grammar caps a chain at seven');
+  if (glyphs.length > 7) notes.push('over 7 tokens — the grammar caps a chain at seven');
   for (let i = 1; i < tokens.length; i += 1) {
     if (tokens[i].glyph && tokens[i - 1].glyph &&
         tokens[i].glyph.glyph === tokens[i - 1].glyph.glyph) {
-      notes.push('a glyph repeats back-to-back — the grammar reads that as a stutter');
+      notes.push('a token repeats back-to-back — the grammar reads that as a stutter');
       break;
     }
   }
   tokens.forEach((t, i) => {
     if (t.op !== '↔') return;
     const a = tokens[i - 1], b = tokens[i + 1];
-    if (!a || !b || !a.glyph || !b.glyph) notes.push('↔ pairs exactly two glyphs, one on each side');
-    else if (a.glyph.glyph === b.glyph.glyph) notes.push('↔ balances two DIFFERENT glyphs');
+    if (!a || !b || !a.glyph || !b.glyph) notes.push('↔ pairs exactly two tokens, one on each side');
+    else if (a.glyph.glyph === b.glyph.glyph) notes.push('↔ balances two DIFFERENT tokens');
   });
   if (glyphs.length >= 2 && !KBD_ACTION_OPENERS.includes(glyphs[0].glyph.glyph)) {
-    notes.push('chains usually open with an action glyph (🔺 🔸 💠 🤝 🥥)');
+    notes.push('chains usually open with an action token (' +
+      KBD_ACTION_OPENERS.map(tokenOf).join(' ') + ')');
   }
   const unique = [...new Set(notes)];
   return { ok: !unique.length, notes: unique };
@@ -3518,12 +3574,12 @@ function kbdSeqUpdate() {
   if (!el || !kbdOpenState) return;
   const tokens = kbdTokens($('msg').value);
   if (!tokens.some((t) => t.glyph)) {
-    el.innerHTML = '<span class="trans">Tap glyphs to build a chain — the sequence bar ' +
+    el.innerHTML = '<span class="trans">Tap tokens to build a chain — the sequence bar ' +
       'translates it here and checks it against the grammar. Advisory only: ' +
       'a hint is never a gate.</span>';
     return;
   }
-  const chain = tokens.map((t) => (t.glyph ? t.glyph.glyph : t.op)).join(' ');
+  const chain = tokens.map((t) => (t.glyph ? tokenOf(t.glyph.glyph) : t.op)).join(' ');
   const trans = tokens.map((t) => (t.glyph ? t.glyph.name.replace(/_/g, ' ') : t.op)).join(' ');
   const v = kbdVerdict(tokens);
   el.innerHTML =

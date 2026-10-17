@@ -12,6 +12,39 @@ root cause and the guard.
 
 ## [Unreleased]
 
+### Removed — the emoji keys on the browser keyboard (2026-10-17)
+
+Owner's instruction, with a screenshot of the keyboard: the eighteen
+picture keys were to go. **Published as Version 17 of the Artifact** — the
+browser build is edited where it is published, so the desktop change
+earlier today did not touch it.
+
+- **A key reads as a word.** `EXECUTE`, `GOLDEN SOURCE`, `ANALYZE` — the
+  name only. No picture is drawn on any operator key.
+- **A tap types a written token**, `[EXECUTE]`, into the message box.
+  A written token survives copy-paste, search, a screen reader and a
+  plain-text export; an emoji survives none of those reliably.
+- **The classifier and the sequence bar read both spellings.** The
+  retired pictures still resolve to the same operator, so a message
+  typed from old habit — and, the real reason, a **knowledge-base card
+  already saved with a glyph** — still reads. The glyph character
+  remains the internal identity, so the interaction matrix, the card
+  lifecycle and the avatar are untouched.
+- `/lexicon` lists tokens; the grammar verdicts and the keyboard's
+  tooltips say "token" where they said "glyph".
+- The grammar operators (`→ + ↔`), Space and Backspace keep their symbols:
+  those are the grammar itself, not the vocabulary that was retired.
+
+**A bug caught in test before it shipped.** The rewritten tokenizer
+indexed the message with `src[i]`. An emoji is a surrogate **pair**, so
+numeric indexing splits it in half — and every retired picture silently
+stopped being recognised, which would have broken exactly the stored
+cards this change was built to protect. `Array.from` restores code-point
+iteration. Found by running the patched functions under Node against six
+cases (new token, old emoji, mixed chain, lower case, prose, operators)
+before publishing, not by reading the diff.
+
+**Still owed:** the replacement set — OD-002. Nothing was invented.
 ### Removed — the emoji operator vocabulary (2026-10-17)
 
 Owner's instruction, given on inspection: the pictures were too easy for
@@ -310,9 +343,9 @@ desktop shell, engine, tools and tests are untouched.
 ### Added
 - **`strata_console_browser.html`** at the repository root — byte-for-byte
   snapshot of the Strata Console browser Artifact as served, the
-  publish-time `<head>` included. **Re-filed 2026-10-14 from the
-  2026-09-21 Artifact: 232,016 bytes, SHA256**
-  `8dede367a2ddc2ba56006970c2eb7e2dfc11a05d0ddb0a1749f9b59cb9f004ab`.
+  publish-time `<head>` included. **Re-filed 2026-10-17 from Version 17:
+  234,356 bytes, SHA256**
+  `edcd66bcbb31b4d7779ce3cf27f4eb67db6513402cd29dbd81699a96247c1142`.
   Filed as the permanent on-repo reference alongside the Artifact link
   and the Google Docs / OneDrive record; a diff against that hash tells
   you whether this file still matches the published Artifact.
