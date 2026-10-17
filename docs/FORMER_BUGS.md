@@ -499,6 +499,55 @@ The check deliberately lives in the **local** suite rather than in CI.
 A gate cannot be trusted to report its own death, so the thing that
 watches the gate has to run somewhere the gate is not.
 
+## FB-014 — The icon did nothing, so he clicked it three times
+
+**Status:** fixed, guarded · **Found:** 2026-10-17 · **Severity:** major
+
+**What the owner saw.** "It's not opening and it just stops. You can
+click on it as an administrator, or you can try to click on it the other
+way and it won't open."
+
+**What was actually wrong.** Nothing in the launcher, and nothing in the
+code. Three `pythonw` processes were found running, started 23 seconds
+apart — his three clicks. Two held real windows:
+
+| PID | Window | State |
+| --- | --- | --- |
+| 3620 | 1111x543 at x=-7, y=33 | visible, on screen, not minimised |
+| 23392 | 158x26 at -18286 | minimised |
+| 24628 | none | no window handle at all |
+
+The machine had **764 MB free of 7,878**, with Windows compressing
+534 MB of pages to cope. The first window opened and could not paint
+fast enough to look like anything had happened — so the app's answer to
+being slow under memory pressure was to let him start two more copies of
+itself, each taking memory from the copy already struggling. Their
+working sets had been squeezed to 32 MB and 7 MB: paged out, not dead.
+
+**The root cause is not the memory.** The memory was the condition; the
+DEFECT is that a second launch competed instead of helping. An
+application that is slow to appear on a loaded machine will always be
+clicked again — that is what a person does when nothing happens, and the
+app has to be built for it.
+
+**The fix.** `strata_tools/single_instance.py` — a pure decision over a
+lock file: proceed, or defer to the console already running. A second
+launch now raises the first window (un-minimising it, as PID 23392
+needed) and exits. Three clicks produce one console; verified in the
+field by clicking three times and counting one process.
+
+Two ways it deliberately fails OPEN, because an app that will not start
+is the louder defect: a **stale** lock whose process is gone starts
+normally, and a lock naming a live process whose window cannot be found
+starts normally too, saying so. A corrupt lock reads as no lock.
+
+**The guard:** `tests/test_single_instance.py` — 14 tests covering a live
+instance, a dead one, our own pid, a corrupt lock, an unanswerable
+liveness check, and the string-versus-integer pid comparison that would
+have made the app defer to itself and never open. The lock sits in the
+install rather than `%TEMP%`, because the owner's own temp sweeps clear
+`%TEMP%` and a guard that vanishes guards nothing.
+
 ## Near-misses — caught before shipping, recorded because the reasoning is the value
 
 ### NM-010 — The gamification guard could not tell a ban from a reward
@@ -648,3 +697,7 @@ it cannot pass by scanning nothing.
     able to run. Earned by FB-013, where the suite was green, the
     paperwork said CI proved it, and CI had not completed since the
     shell was retired six weeks earlier.
+11. **An app that is slow to appear will be clicked again.** Build for
+    it. The second launch must HELP — raise what is already there —
+    never compete with it for the resource that was short in the first
+    place. Earned by FB-014.

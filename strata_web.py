@@ -39,6 +39,7 @@ import webview
 
 from strata_core import ALL_GLYPHS, StrataPipeline
 from strata_tools import (codex, commands, context_sources, dictation,
+                          single_instance,
                           focus,
                           session,
                           speech)
@@ -930,15 +931,106 @@ class Api:
                 else ""}
 
 
+#: One definition, because the window is found BY this title when a
+#: second launch stands down. Two copies could drift apart and the
+#: raiser would silently find nothing.
+WINDOW_TITLE = "Strata Console — web shell"
+
+
+def _pid_alive(pid):
+    """Is that process still running? Windows, without extra packages."""
+    import ctypes
+    PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+    STILL_ACTIVE = 259
+    k = ctypes.windll.kernel32
+    h = k.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, int(pid))
+    if not h:
+        return False          # gone, or not ours to ask about
+    try:
+        code = ctypes.c_ulong()
+        if not k.GetExitCodeProcess(h, ctypes.byref(code)):
+            return False
+        return code.value == STILL_ACTIVE
+    finally:
+        k.CloseHandle(h)
+
+
+def _raise_existing_window():
+    """Bring the console already running to the front.
+
+    This is the whole point of standing down: the second click must
+    HELP. Finding nothing is reported false rather than guessed -- the
+    caller then starts normally, because a click that does nothing is
+    what produced three processes in the first place.
+    """
+    import ctypes
+    user32 = ctypes.windll.user32
+    SW_RESTORE = 9
+    found = []
+
+    WNDENUMPROC = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_void_p,
+                                     ctypes.c_void_p)
+
+    def each(hwnd, _lparam):
+        length = user32.GetWindowTextLengthW(hwnd)
+        if length:
+            buf = ctypes.create_unicode_buffer(length + 1)
+            user32.GetWindowTextW(hwnd, buf, length + 1)
+            if buf.value.startswith(WINDOW_TITLE):
+                found.append(hwnd)
+        return True
+
+    try:
+        user32.EnumWindows(WNDENUMPROC(each), None)
+    except Exception:
+        return False
+    if not found:
+        return False
+    hwnd = found[0]
+    user32.ShowWindow(hwnd, SW_RESTORE)   # un-minimise, as PID 23392 was
+    user32.SetForegroundWindow(hwnd)
+    return True
+
+
 def main():
     if not os.path.exists(INDEX):
         raise SystemExit(f"missing {INDEX}")
+    # One console, not three (2026-10-17). The owner clicked the icon,
+    # the window did not paint fast enough on a machine with 764 MB
+    # free, so he clicked again -- and the app let him start two more
+    # copies, each taking memory from the one already struggling. The
+    # second click now raises the first window instead of competing
+    # with it. The DECISION is a tested kernel; only the effects live
+    # here.
+    lock = single_instance.lock_path(HERE)
+    try:
+        with open(lock, encoding="utf-8") as fh:
+            existing = fh.read()
+    except OSError:
+        existing = ""
+    verdict = single_instance.decide(existing, os.getpid(), _pid_alive)
+    if verdict == single_instance.DEFER:
+        pid, _started = single_instance.parse_lock(existing)
+        print(single_instance.defer_message(pid))
+        if _raise_existing_window():
+            return 0
+        # The lock says a console is running but no window answered.
+        # Starting is the safer failure: a missing window the owner can
+        # see beats an app that refuses to open and cannot say why.
+        print("No window answered, so starting a new console.")
+    try:
+        with open(lock, "w", encoding="utf-8") as fh:
+            fh.write(single_instance.render_lock(
+                os.getpid(), datetime.now().strftime("%Y-%m-%dT%H:%M:%S")))
+    except OSError:
+        pass          # a lock we cannot write is not worth failing over
+
     api = Api()
     # Sized as a fraction of the screen rather than a fixed pixel count:
     # the Tk shell's oldest defect was a hardcoded size that did not fit,
     # and there is no reason to import that mistake into a new shell.
     window = webview.create_window(
-        "Strata Console — web shell",
+        WINDOW_TITLE,
         INDEX,
         js_api=api,
         width=1000,

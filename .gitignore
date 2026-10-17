@@ -5,3 +5,4 @@ turbo_state.json
 tools/layout_report.txt
 .coverage
 *.lnk
+strata_console.lock
