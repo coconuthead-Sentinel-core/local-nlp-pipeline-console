@@ -24,7 +24,7 @@ import os
 import sqlite3
 from datetime import datetime
 
-from strata_tools import session
+from strata_tools import focus, session
 
 # Reading fonts offered to the owner, best-first (ported from Sentinel
 # Forge). CORRECTED 2026-09-01 -- the previous comment here claimed these
@@ -139,6 +139,13 @@ class StrataDB:
             );
             """
         )
+        # Focus-cycle tables, executed from the kernel's own
+        # declaration rather than retyped here. NM-009 was a second
+        # copy of a mapping drifting from the first; a schema is the
+        # same hazard, so focus.SCHEMA is the single definition and
+        # this loop is the only place it runs.
+        for statement in focus.SCHEMA:
+            self.conn.execute(statement)
         self.conn.commit()
 
     # --- context entries ------------------------------------------------------
@@ -213,6 +220,97 @@ class StrataDB:
             "SELECT value FROM system_state WHERE key = ?", (key,)
         ).fetchone()
         return row["value"] if row else default
+
+    # --- focus cycles and experience sampling ---------------------------------
+    # The rules live in strata_tools/focus.py, which is pure and knows
+    # nothing about SQLite. These six methods are the only seam between
+    # that kernel and this file: they move dicts in and out, and decide
+    # nothing. A reader wanting to know what a cycle MEANS goes to the
+    # kernel; a reader wanting to know where it is STORED stays here.
+
+    def save_cycle(self, cycle):
+        """Write an open or closed cycle. Returns its id.
+
+        INSERT OR REPLACE, not INSERT: ``focus.close_cycle`` returns a new
+        dict rather than mutating, so closing a cycle arrives here as a
+        full record carrying the id it was opened with. A plain INSERT
+        would store the finished cycle a second time and leave the open
+        one behind -- a duplicate id, which ``focus.validate`` reports and
+        every average would then count twice.
+        """
+        cur = self.conn.execute(
+            "INSERT OR REPLACE INTO focus_cycles "
+            "(id, session_id, started_at, ended_at, planned_minutes, outcome) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (cycle.get("id"), cycle["session_id"], cycle["started_at"],
+             cycle.get("ended_at"), cycle["planned_minutes"],
+             cycle.get("outcome")),
+        )
+        self.conn.commit()
+        return cycle.get("id") or cur.lastrowid
+
+    def save_report(self, report):
+        """Append one sample. Returns its id.
+
+        Append-only by design: a report records what was felt at a moment,
+        and a moment does not get revised. There is deliberately no
+        update and no delete here.
+        """
+        cur = self.conn.execute(
+            "INSERT INTO focus_reports "
+            "(cycle_id, phase, reported_load, mode, note) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (report["cycle_id"], report["phase"], report["reported_load"],
+             report.get("mode"), report.get("note")),
+        )
+        self.conn.commit()
+        return cur.lastrowid
+
+    def save_day(self, day):
+        """Write one roster row. The day itself is the key, so a
+        correction replaces rather than accumulates."""
+        self.conn.execute(
+            "INSERT OR REPLACE INTO focus_days "
+            "(day, day_type, shift_position, hours_slept) VALUES (?, ?, ?, ?)",
+            (day["day"], day["day_type"], day.get("shift_position"),
+             day.get("hours_slept")),
+        )
+        self.conn.commit()
+
+    def cycles(self, session_id=None):
+        """Cycles oldest first, shaped for the kernel's own functions."""
+        sql = ("SELECT id, session_id, started_at, ended_at, "
+               "planned_minutes, outcome FROM focus_cycles")
+        args = ()
+        if session_id is not None:
+            sql += " WHERE session_id = ?"
+            args = (session_id,)
+        sql += " ORDER BY id"
+        return [dict(r) for r in self.conn.execute(sql, args).fetchall()]
+
+    def reports(self, cycle_ids=None):
+        """Samples oldest first. ``cycle_ids`` narrows to given cycles.
+
+        An empty list means exactly that -- no cycles, so no reports --
+        and must not be mistaken for ``None``, which means every report.
+        """
+        sql = ("SELECT id, cycle_id, phase, reported_load, mode, note "
+               "FROM focus_reports")
+        args = ()
+        if cycle_ids is not None:
+            ids = list(cycle_ids)
+            if not ids:
+                return []
+            sql += " WHERE cycle_id IN (%s)" % ",".join("?" * len(ids))
+            args = tuple(ids)
+        sql += " ORDER BY id"
+        return [dict(r) for r in self.conn.execute(sql, args).fetchall()]
+
+    def days(self):
+        """Roster rows in calendar order."""
+        return [dict(r) for r in self.conn.execute(
+            "SELECT day, day_type, shift_position, hours_slept "
+            "FROM focus_days ORDER BY day").fetchall()]
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # PIPELINE STAGES

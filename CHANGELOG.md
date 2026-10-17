@@ -12,6 +12,63 @@ root cause and the guard.
 
 ## [Unreleased]
 
+### Fixed — the quality gate had been failing for six weeks (2026-10-17)
+
+- **CI has been red on every push since 2026-09-01** and nobody knew.
+  `strata_console.py` was deleted with the CustomTkinter shell that day;
+  `.github/workflows/ci.yml` went on running `py_compile
+  strata_console.py` and `import strata_console`. Eight consecutive
+  failed runs, across four feature tickets and three documentation
+  commits, while `SCOPE.md` §3 listed "proven by CI" as a met
+  acceptance criterion. The suite was green throughout — which is
+  exactly what kept it hidden. Recorded as
+  [FB-013](docs/FORMER_BUGS.md) with standing law 10: *a gate that
+  cannot pass is not a gate, it is a false acceptance claim.*
+- The compile list now names files that exist; the degraded-mode check
+  asserts both that the engine imports with **no** UI library and that
+  the shell imports on `pywebview` alone. `customtkinter`, retired as a
+  dependency on 2026-09-01, is no longer installed in CI; `pywebview`,
+  which the shell actually requires, now is — it never had been.
+- **Guard:** [`tests/test_ci_workflow.py`](tests/test_ci_workflow.py),
+  8 tests in the **local** suite, asserting every path and module the
+  workflow executes exists, that no live step names the retired shell,
+  and that CI installs nothing optional. It runs outside the gate it
+  watches, because a gate cannot report its own death. Verified by
+  reintroducing the defect and confirming the guard fails.
+
+### Added — focus cycles persist (2026-10-17)
+
+Ticket 5a. `strata_tools/focus.py` declared a `SCHEMA` on 2026-10-15 but
+nothing created those tables, so a recorded cycle lived only until the
+window closed. Six methods on `StrataDB` close that seam and decide
+nothing: `save_cycle`, `save_report`, `save_day`, `cycles`, `reports`,
+`days`.
+
+- **The schema is executed from the kernel's own declaration**, never
+  retyped — `for statement in focus.SCHEMA`. NM-009 was a second copy of
+  a mapping drifting from the first; a schema is the same hazard, so
+  there is exactly one definition of it.
+- **Additive migration.** The three existing tables and their rows are
+  untouched; a database written before these tables existed gains them
+  on open and keeps everything it held.
+- `save_cycle` is `INSERT OR REPLACE`, because `focus.close_cycle`
+  returns a new dict carrying the id it was opened with. A plain INSERT
+  would store the finished cycle a second time and leave the open one
+  behind — a duplicate id, which `validate()` reports and every average
+  would then count twice.
+- `save_report` is append-only by design: a report records what was felt
+  at a moment, and a moment does not get revised. There is deliberately
+  no update and no delete.
+- **22 tests** ([`tests/test_focus_store.py`](tests/test_focus_store.py)),
+  written before the implementation and red first. The ones that matter
+  run the kernel's own analytics over rows that made the **round trip**,
+  not over dicts that never left memory — so a load arriving back as a
+  string, or minutes as a float, fails here rather than in a chart months
+  from now. Every test uses a throwaway database, and one reads the live
+  file directly to assert the suite never wrote to it.
+
+No UI yet. The timer and the two-tap report are ticket 5b; a control
+that does nothing would be a defect, so nothing was added to the shell.
 ### Added — the operator codex and the focus kernel (2026-10-15)
 
 Two pure kernels, both headless, neither wired to any UI. Scope decision

@@ -442,6 +442,63 @@ should already have told him.*
 
 ---
 
+## FB-013 — The quality gate had been failing for six weeks, silently
+
+**Status:** fixed, guarded · **Found:** 2026-10-17 · **Severity:** major
+
+**What the owner saw.** Nothing. That is the defect.
+
+**What was actually wrong.** `strata_console.py` was deleted on
+2026-09-01 when the CustomTkinter shell was retired. The CI workflow was
+not updated with it, so two steps went on naming a file that no longer
+existed:
+
+```yaml
+python -m py_compile strata_console.py
+python -c "import strata_console; print('template mode import OK')"
+```
+
+Both failed on every push from that day forward — **eight consecutive
+red runs**, spanning four feature tickets and three documentation
+commits. Throughout, `SCOPE.md` section 3 listed as a *met* acceptance
+criterion: "the full suite is green at every merge to `main`, proven by
+CI on Python 3.11 and 3.13." The suite genuinely was green the whole
+time. The sentence was still false, because the thing named as the proof
+had not run to completion since September.
+
+A second, smaller fault sat beside it: the workflow installed
+`customtkinter` — retired as a dependency on the same day — and never
+installed `pywebview`, the one package the shell actually requires.
+
+**Why it stayed hidden.** The local suite passing is what hid it. The
+work was sound, so there was no symptom to chase, and the only component
+with anything to report was the component that had stopped reporting.
+A red light on a remote tab is not a signal this shop has ever been able
+to rely on; the lesson is not "check Actions more often."
+
+**The fix.** The compile list now names files that exist
+(`strata_core.py`, `strata_web.py`, `turbo_console.py`). The
+degraded-mode check makes two assertions instead of one — the engine
+imports with no UI library present at all, and the shell imports on
+`pywebview` alone — which is the modern form of the claim
+`SCOPE.md` section 4 rests on. `customtkinter` is gone from CI;
+`pywebview` is installed.
+
+**The guard:** `tests/test_ci_workflow.py` — 8 tests, run by the local
+suite on this laptop. It parses `ci.yml`, strips comments (so the
+history recorded in them is not mistaken for a live reference), and
+asserts that every `py_compile` target, every `compileall` directory and
+every imported module exists in the repository; that no live step
+mentions the retired Tk shell by name; that pip installs stay limited to
+the one required package plus tooling, since an optional package here
+would hide the very regression the degraded-mode check exists to catch;
+and that the suite is still run on both supported Pythons. The guard was
+verified by reintroducing the original defect and confirming it fails.
+
+The check deliberately lives in the **local** suite rather than in CI.
+A gate cannot be trusted to report its own death, so the thing that
+watches the gate has to run somewhere the gate is not.
+
 ## Near-misses — caught before shipping, recorded because the reasoning is the value
 
 ### NM-010 — The gamification guard could not tell a ban from a reward
@@ -585,3 +642,9 @@ it cannot pass by scanning nothing.
 9. **Colour is never the only cue** (WCAG 1.4.1), and **a claim in the
    repository has to survive checking** — including a comment about
    what research says.
+10. **A gate that cannot pass is not a gate — it is a false acceptance
+    claim.** An automated check is itself a component and can fail
+    silently; something that runs *outside* it must assert it is still
+    able to run. Earned by FB-013, where the suite was green, the
+    paperwork said CI proved it, and CI had not completed since the
+    shell was retired six weeks earlier.

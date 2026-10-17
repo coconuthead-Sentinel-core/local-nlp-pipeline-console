@@ -35,13 +35,19 @@ jobs:
       # (voice, documents, web, the local model) are all behind try/except
       # and must stay optional — installing them here would hide a
       # regression that breaks the degraded path the owner relies on.
-      - name: Install shell dependency
-        run: python -m pip install --quiet customtkinter
+      # customtkinter was installed here until 2026-10-17. It stopped being
+      # a dependency when the Tk shell was retired on 2026-09-01, and no
+      # test or compiled file has imported it since; py_compile needs only
+      # syntax, so turbo_console.py parses without it. pywebview is the one
+      # genuinely required dependency and was never installed here at all.
+      - name: Install required dependency
+        run: python -m pip install --quiet pywebview
 
       # The floor: everything must at least parse.
       - name: Syntax check (py_compile)
         run: |
-          python -m py_compile strata_console.py
+          python -m py_compile strata_core.py
+          python -m py_compile strata_web.py
           python -m py_compile turbo_console.py
           python -m compileall -q strata_tools tools tests
 
@@ -54,8 +60,18 @@ jobs:
 
       # Proves the console still starts when NOTHING optional is installed —
       # the path a fresh machine takes, and the one that silently rots.
+      # Two assertions, not one: the engine must import with no UI library
+      # present at all, and the shell must import with only pywebview.
+      #
+      # This read `import strata_console` until 2026-10-17. That file was
+      # deleted on 2026-09-01 with the Tk shell, so this step -- and the
+      # py_compile above it -- failed on every push for six weeks while
+      # SCOPE.md section 3 went on claiming CI proved the suite green. A
+      # gate that cannot pass is not a gate; it is a false acceptance claim.
       - name: Degraded-mode import check
-        run: python -c "import strata_console; print('template mode import OK')"
+        run: |
+          python -c "import strata_core; print('engine imports with no UI library: OK')"
+          python -c "import strata_web; print('shell imports on pywebview alone: OK')"
 
       # Informational; does not fail the build.
       - name: Coverage report (functional core)
