@@ -25,6 +25,7 @@ COMMANDS = {
     "mode": "Switch mode: /mode green | yellow | red.",
     "clear": "Clear the window and what the model recalls.",
     "focus": "Focus cycle: /focus 15 | 25 | 45 to start, /focus stop to close.",
+    "keys": "Glyph keyboard: /keys opens the codex keyboard (Alt+K), /keys close shuts it.",
     "help": "Show this list.",
 }
 

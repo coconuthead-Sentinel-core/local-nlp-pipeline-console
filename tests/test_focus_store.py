@@ -293,3 +293,108 @@ class IsolationTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SummaryTests(TempStoreTests):
+    """focus_summary() over stored rows -- the honesty rules especially."""
+
+    def api(self):
+        import strata_web
+        a = strata_web.Api.__new__(strata_web.Api)
+        a.pipeline = type("P", (), {"db": self.db})()
+        return a
+
+    def record(self, day, day_type, minutes, ran_to_end, start, end):
+        cid = self.db.save_cycle(focus.new_cycle("s1", minutes, f"{day}T09:00:00"))
+        stored = [c for c in self.db.cycles() if c["id"] == cid][0]
+        self.db.save_cycle(
+            focus.close_cycle(stored, f"{day}T09:{minutes:02d}:00", ran_to_end))
+        self.db.save_report(focus.new_report(cid, "START", start))
+        self.db.save_report(focus.new_report(cid, "END", end))
+        self.db.save_day(focus.new_day(day, day_type))
+
+    def test_an_empty_record_says_so_rather_than_showing_zeroes(self):
+        out = self.api().focus_summary()
+        self.assertTrue(out["ok"])
+        self.assertIn("No cycles recorded yet", out["message"])
+
+    def test_the_figures_come_out_of_the_store(self):
+        self.record("2026-10-13", "WORK", 15, True, 3, 6)
+        self.record("2026-10-14", "WORK", 15, False, 5, 8)
+        msg = self.api().focus_summary()["message"]
+        self.assertIn("2 cycles", msg)
+        self.assertIn("50%", msg)
+
+    def test_every_load_figure_is_labelled_a_report(self):
+        self.record("2026-10-13", "WORK", 15, True, 3, 6)
+        msg = self.api().focus_summary()["message"].lower()
+        self.assertIn("reported", msg)
+        for banned in ("your cognitive load is", "measured load",
+                       "load was measured", "detected"):
+            self.assertNotIn(banned, msg)
+
+    def test_the_day_comparison_carries_its_own_caveat(self):
+        self.record("2026-10-13", "WORK", 15, True, 3, 6)
+        self.record("2026-10-17", "OFF", 25, True, 2, 4)
+        msg = self.api().focus_summary()["message"]
+        self.assertIn("observed differences, not", msg)
+        self.assertIn("never why", msg)
+
+    def test_a_thin_field_is_not_crowned(self):
+        # best_cycle_length guards on min_closed; the summary must report
+        # the honest absence rather than naming a winner from two tries.
+        self.record("2026-10-13", "WORK", 25, True, 3, 6)
+        msg = self.api().focus_summary()["message"]
+        self.assertIn("not a missing number", msg)
+
+    def test_nothing_in_the_summary_urges(self):
+        self.record("2026-10-13", "WORK", 15, False, 3, 6)
+        msg = self.api().focus_summary()["message"].lower()
+        for banned in ("streak", "well done", "goal", "target", "quota",
+                       "try harder", "only managed", "failed"):
+            with self.subTest(word=banned):
+                self.assertNotIn(banned, msg)
+
+    def test_structural_problems_are_surfaced_not_hidden(self):
+        self.record("2026-10-13", "WORK", 15, True, 3, 6)
+        self.db.conn.execute(
+            "INSERT INTO focus_reports (cycle_id, phase, reported_load) "
+            "VALUES (9999, 'START', 5)")
+        self.db.conn.commit()
+        msg = self.api().focus_summary()["message"]
+        self.assertIn("structural problems", msg)
+
+    def test_one_day_type_alone_does_not_crash_the_summary(self):
+        """The short-row bug, nailed down (found 2026-10-17).
+
+        compare_by_day_type emits one row per day type ALWAYS, and a type
+        with no cycles comes back short -- day_type, cycles, note, and no
+        completion_rate. The summary read completion_rate off every row
+        and raised KeyError the moment only one day type had data, which
+        is every early day of use. Caught by the tests above before it
+        ever reached the owner.
+        """
+        self.record("2026-10-13", "WORK", 15, True, 3, 6)
+        msg = self.api().focus_summary()["message"]
+        self.assertIn("1 cycles", msg)
+        # One day type is not a comparison, so no table is drawn.
+        self.assertNotIn("| Day |", msg)
+
+    def test_two_day_types_do_draw_the_comparison(self):
+        self.record("2026-10-13", "WORK", 15, True, 3, 6)
+        self.record("2026-10-17", "OFF", 25, True, 2, 4)
+        msg = self.api().focus_summary()["message"]
+        self.assertIn("| Day |", msg)
+        self.assertIn("Work", msg)
+        self.assertIn("Off", msg)
+
+    def test_a_cycle_on_an_unrecorded_day_does_not_crash_it(self):
+        # No focus_days row at all: every day type is short-form.
+        cid = self.db.save_cycle(
+            focus.new_cycle("s1", 15, "2026-10-13T09:00:00"))
+        stored = [c for c in self.db.cycles() if c["id"] == cid][0]
+        self.db.save_cycle(
+            focus.close_cycle(stored, "2026-10-13T09:15:00", True))
+        msg = self.api().focus_summary()["message"]
+        self.assertIn("1 cycles", msg)
+        self.assertNotIn("| Day |", msg)

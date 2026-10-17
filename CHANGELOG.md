@@ -12,6 +12,76 @@ root cause and the guard.
 
 ## [Unreleased]
 
+### Added — the glyph keyboard and the cycle summary (2026-10-17)
+
+The last two kernels with no control attached. Both are now reachable.
+
+**Ticket 6 — the glyph keyboard.** `/keys` or **Alt+K** opens a panel of
+the nineteen codex operators in address order plus the eight action
+verbs. Tapping keys builds a chain; the sequence bar reads it back in
+English through `codex.reads_as()` — "Take it in -- execute, in the
+green zone" — so a chain can be checked without consulting a legend,
+which is the test the old keyboard failed.
+
+- **The keys type into the message box**, the same box a hardware
+  keyboard types into. One input path, never two, so commands, the
+  pipeline and the dictation polish all see one kind of message. A test
+  asserts the insert path touches `#msg` and never calls `api.send`.
+- **The grammar stays in the kernel.** The page asks `codex_reads()` and
+  renders the answer; a test forbids the page from reimplementing the
+  joining rule, because the copy in the page would be the untested one.
+- **An unrecognised code is named, not swallowed** — a key that types a
+  token the codex does not know and says nothing is a silent decline.
+- Each key carries its meaning three ways: label, zone word, and
+  `aria-pressed` plus a thickened border for selection, so colour is
+  never the only cue (WCAG 1.4.1). **Alt+K** exists because a panel only
+  openable by click is a panel some people cannot open (WCAG 2.1.1).
+
+**Ticket 7 — what the cycles say.** A **Stats** button and `/focus stats`
+render the six analysis functions that shipped on 2026-10-15 and had
+never been displayed: completion rate, a per-length table, the length
+actually finished most often, mean reported load at each phase and its
+change, and a work-day versus rest-day comparison.
+
+- **Every figure comes from the kernel.** A test forbids the page from
+  computing a statistic of its own.
+- **Nothing is crowned on a thin field.** `best_cycle_length` requires
+  three closed cycles, and the summary reports the absence as "the
+  honest answer, not a missing number" rather than naming a winner from
+  two tries.
+- **The day comparison carries its caveat in writing**: observed
+  differences, not causes — a work day differs from a rest day in more
+  ways than one record can separate, sleep among them.
+- Every load figure is labelled a *report*, and structural problems from
+  `validate()` are surfaced rather than hidden.
+
+### Fixed — the summary crashed on a single day type (2026-10-17)
+
+- `compare_by_day_type` emits one row per day type **always**, and a type
+  with no cycles comes back short — `day_type`, `cycles`, `note`, and no
+  `completion_rate`. The summary read `completion_rate` off every row, so
+  it raised `KeyError` whenever only one day type had data, which is
+  every early day of use. Caught by the new tests before it reached the
+  owner. **Guard:** rows with no cycles are filtered out and the table is
+  drawn only when two day types actually have data — a comparison
+  against an empty column is not a comparison — with three regression
+  tests including a cycle on a day that was never recorded.
+
+### Removed — the last of the CustomTkinter shell (2026-10-17)
+
+- **`strata_tools/keyboard.py`** and its 20 tests. 239 lines of Tk
+  focus-ring traversal for a shell retired on 2026-09-01. `layout.py`,
+  `window_fit.py` and `selection.py` went with that shell; this one was
+  missed and sat in the tree for six weeks driving a toolkit nothing
+  imports. Twenty green tests made it look alive.
+- One constant was still in use: `FOCUS_RING`, by the web shell's own
+  contrast tests. It moved to [`strata_tools/theme.py`](strata_tools/theme.py),
+  where a colour belongs — not in a module about widget traversal.
+- **Gate:** `tests/test_ci_workflow.py` now fails if any shipped module
+  imports `customtkinter` or `tkinter`, or if any of the four retired Tk
+  kernels reappears in `strata_tools/`. `turbo_console.py` is exempt and
+  named: it is a separate dormant tool that still declares the
+  dependency in `requirements.txt`. A sweep ends with a static gate.
 ### Added — the focus timer and the two-tap report (2026-10-17)
 
 Ticket 5b. The kernel and the store existed; nothing could reach them.

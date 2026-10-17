@@ -739,6 +739,105 @@ async function fxBoot() {
   fxRender(s);
   if (s.open) fxStartTick();
 }
+
+/* ---------- glyph keyboard (ticket 6) ----------------------------------
+   codex.py holds the vocabulary, reads_as() the grammar. This draws keys
+   and inserts the chain INTO the message box -- the same box a hardware
+   keyboard types into. One input path, never two. */
+
+let kbPicked = [];
+
+async function kbBuild() {
+  if (!api) return;
+  const k = await api.codex_keyboard();
+  const rows = $('kb-rows');
+  rows.textContent = '';
+  (k.rows || []).forEach((row) => {
+    const r = document.createElement('div');
+    r.className = 'kb-row';
+    row.forEach((key) => { if (key) r.appendChild(kbKey(key.code, key.label, key.zone_label)); });
+    rows.appendChild(r);
+  });
+  const acts = $('kb-actions');
+  acts.textContent = '';
+  (k.actions || []).forEach((a) => {
+    acts.appendChild(kbKey(a.code, a.label, 'verb'));
+  });
+  kbSays();
+}
+
+function kbKey(code, label, sub) {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'kb-key';
+  b.dataset.code = code;
+  b.setAttribute('aria-pressed', 'false');
+  b.setAttribute('aria-label', label + ', ' + sub);
+  const n = document.createElement('span');
+  n.textContent = label;
+  const s = document.createElement('span');
+  s.className = 'kn';
+  s.textContent = sub;
+  b.appendChild(n); b.appendChild(s);
+  b.addEventListener('click', () => kbToggle(code));
+  return b;
+}
+
+function kbToggle(code) {
+  const at = kbPicked.indexOf(code);
+  if (at === -1) kbPicked.push(code); else kbPicked.splice(at, 1);
+  document.querySelectorAll('.kb-key').forEach((b) => {
+    b.setAttribute('aria-pressed',
+      String(kbPicked.indexOf(b.dataset.code) !== -1));
+  });
+  kbSays();
+}
+
+async function kbSays() {
+  if (!api) return;
+  const zone = document.querySelector('.mode[aria-checked="true"]');
+  const r = await api.codex_reads(kbPicked, zone ? zone.dataset.zone : null);
+  let text = r.sentence || '';
+  if (r.peakLoad) text += '  (peak load ' + r.peakLoad + ')';
+  if (r.unknown && r.unknown.length) {
+    /* Named, never swallowed: a key that types a token the codex does
+       not know and says nothing is a silent decline. */
+    text += '  unknown: ' + r.unknown.join(', ');
+  }
+  $('kb-says').textContent = text;
+}
+
+function kbInsert() {
+  if (!kbPicked.length) return;
+  const box = $('msg');
+  const sep = (box.value && !box.value.endsWith(' ')) ? ' ' : '';
+  box.value += sep + kbPicked.join(' ') + ' ';
+  grow(box);
+  box.focus();
+  kbReset();
+}
+
+function kbReset() {
+  kbPicked = [];
+  document.querySelectorAll('.kb-key').forEach((b) => {
+    b.setAttribute('aria-pressed', 'false');
+  });
+  kbSays();
+}
+
+function kbShow(on) {
+  $('kb-panel').hidden = !on;
+  $('kb-open').setAttribute('aria-expanded', String(!!on));
+  if (on && !$('kb-rows').children.length) kbBuild();
+}
+
+/* ---------- what the cycles say (ticket 7) --------------------------- */
+
+async function fxStats() {
+  if (!api) return;
+  const r = await api.focus_summary();
+  turn('Strata', markdown(r.message));
+}
 document.addEventListener('DOMContentLoaded', () => {
   $('composer').addEventListener('submit', (e) => { e.preventDefault(); send(); });
 
@@ -854,6 +953,14 @@ document.addEventListener('DOMContentLoaded', () => {
       e.preventDefault();
       $('clear').click();
     }
+    /* Alt+K reaches the glyph keyboard without the mouse. WCAG 2.1.1
+       is the floor this project paid to learn (see keyboard.py's own
+       docstring): a panel only openable by click is a panel some
+       people cannot open. */
+    if (e.altKey && e.key.toLowerCase() === 'k') {
+      e.preventDefault();
+      kbShow($('kb-panel').hidden);
+    }
     if (e.key === 'Escape' && speaking) { e.preventDefault(); stopReading(); }
   });
 
@@ -871,6 +978,12 @@ document.addEventListener('DOMContentLoaded', () => {
   $('fx-stop').addEventListener('click', () => fxClose(false));
   $('fx-skip').addEventListener('click', fxSkip);
   $('fx-nomode').addEventListener('click', () => fxSave(null));
+
+  $('fx-stats').addEventListener('click', fxStats);
+  $('kb-open').addEventListener('click',
+    () => kbShow($('kb-panel').hidden));
+  $('kb-type').addEventListener('click', kbInsert);
+  $('kb-clear').addEventListener('click', kbReset);
 
   window.addEventListener('pywebviewready', boot);
   if (window.pywebview && window.pywebview.api) boot();

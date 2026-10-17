@@ -401,3 +401,44 @@ select.ctl { padding-right: 8px; }
   border-width: 3px;
   font-weight: 600;
 }
+
+/* --- glyph keyboard ----------------------------------------------------
+   Same measured palette again; no new colour, so the contrast audit still
+   covers every pair. A drawer: bounded, collapsed while hidden. */
+.kb {
+  background: var(--surface);
+  border: 1px solid var(--frame);
+  border-radius: 8px;
+  padding: 10px 14px;
+  max-height: 42vh;
+  overflow-y: auto;
+}
+.kb-rows { display: flex; flex-direction: column; gap: 4px; }
+.kb-row { display: flex; gap: 6px; flex-wrap: wrap; }
+.kbd-lbl {
+  font-size: .72em; color: var(--ink-mute); margin: 8px 0 2px;
+  letter-spacing: .06em; text-transform: uppercase;
+}
+/* A key carries its meaning three ways -- label, zone word, and a zone
+   dot -- so no single channel has to work alone (WCAG 1.4.1). */
+.kb-key {
+  font: inherit; font-size: .85em; color: var(--ink);
+  background: var(--ground);
+  border: 1px solid var(--outline);
+  border-radius: 6px;
+  min-width: 72px; min-height: 48px;
+  padding: 4px 8px; cursor: pointer;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 1px;
+}
+.kb-key:hover { background: var(--fill-hi); }
+.kb-key[aria-pressed="true"] {
+  background: var(--fill); border-width: 3px; font-weight: 600;
+}
+.kb-key .kn { font-size: .72em; color: var(--ink-mute); }
+.kb-key[aria-pressed="true"] .kn { color: var(--ink); }
+.kb-seq {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  border-top: 1px solid var(--frame);
+  margin-top: 10px; padding-top: 8px; font-size: .9em;
+}

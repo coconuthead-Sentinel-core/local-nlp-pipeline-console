@@ -38,13 +38,18 @@ import time
 import webview
 
 from strata_core import ALL_GLYPHS, StrataPipeline
-from strata_tools import (commands, context_sources, dictation, focus,
+from strata_tools import (codex, commands, context_sources, dictation,
+                          focus,
                           session,
                           speech)
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 INDEX = os.path.join(HERE, "web", "index.html")
 
+
+def nl_join(lines):
+    """Join rendered markdown lines. Here so the f-strings above stay flat."""
+    return "\n".join(lines)
 
 class Api:
     """The bridge the page calls. One method per thing the UI can ask.
@@ -384,6 +389,10 @@ class Api:
 
         if name == "focus":
             argument = (parsed["argument"] or "").strip().lower()
+            if argument in ("stats", "summary", "report"):
+                out = self.focus_summary()
+                out["handled"] = True
+                return out
             if argument in ("stop", "close", "end"):
                 out = self.focus_close(ran_to_end=False)
                 out["handled"] = True
@@ -409,6 +418,19 @@ class Api:
             out = self.focus_start(int(argument))
             out["handled"] = True
             return out
+        if name == "keys":
+            argument = (parsed["argument"] or "").strip().lower()
+            shut = argument in ("close", "hide", "off")
+            kb = self.codex_keyboard()
+            kb["handled"] = True
+            kb["openKeyboard"] = not shut
+            kb["message"] = ("Glyph keyboard closed."
+                             if shut else
+                             "Glyph keyboard open. Keys type into "
+                             "the message box, so everything else "
+                             "sees one kind of message.")
+            return kb
+
         if name == "mode":
             argument = parsed["argument"]
             if not argument:
@@ -539,6 +561,130 @@ class Api:
         if report["mode"]:
             said += f", working {report['mode']}"
         return {"ok": True, "message": said + "."}
+
+    # --- the glyph keyboard (ticket 6) ------------------------------------
+    # codex.py holds the vocabulary and reads_as() the grammar. The panel
+    # TYPES INTO the message box a hardware keyboard types into -- one
+    # input path, never two, so everything downstream (commands, the
+    # pipeline, dictation polish) sees one kind of message.
+
+    def codex_keyboard(self):
+        """Everything the panel needs to draw itself."""
+        rows = [[codex.display(code) for code in row]
+                for row in codex.keyboard_rows(5)]
+        return {"ok": True, "rows": rows,
+                "actions": [dict(a) for a in codex.ACTIONS]}
+
+    def codex_reads(self, codes, zone=None):
+        """The sequence bar: what the chain says, in English.
+
+        Also returns the peak load and any code the codex does not know,
+        because a key that types an unrecognised token and says nothing
+        is the silent-decline defect this shop names.
+        """
+        picked = [c for c in (codes or []) if c]
+        return {"ok": True,
+                "sentence": codex.reads_as(picked, zone or None),
+                "peakLoad": codex.peak_load(picked),
+                "unknown": codex.unknown_codes(picked)}
+
+    # --- what the recorded cycles say (ticket 7) --------------------------
+
+    def focus_summary(self):
+        """The kernel's analytics over the stored rows, as markdown.
+
+        Six analysis functions shipped on 2026-10-15 and nothing
+        displayed them: the owner could record cycles but never see what
+        they said, which is a kernel with no control attached -- the same
+        gap tickets 5a and 5b closed at the other end.
+
+        Every figure is labelled as a REPORT, and the day-type comparison
+        carries the kernel's own observed_not_caused flag as a written
+        caveat. An N-of-1 observational record cannot establish cause,
+        and a table that lets the owner forget that is a defect under
+        SCOPE.md section 3.
+        """
+        db = self.pipeline.db
+        cycles, reports, days = db.cycles(), db.reports(), db.days()
+        if not cycles:
+            return {"ok": True, "markdown": True,
+                    "message": ("No cycles recorded yet. Start one with "
+                                "the Focus control or `/focus 15`.")}
+
+        lines = ["### What your cycles say", ""]
+        rate = focus.completion_rate(cycles)
+        closed = [c for c in cycles if c.get("outcome")]
+        lines.append(f"- **{len(cycles)} cycles** recorded, "
+                     f"{len(closed)} closed.")
+        if rate is not None:
+            lines.append(f"- **{round(rate * 100)}%** ran to the end.")
+
+        by_len = focus.cycle_length_report(cycles)
+        if by_len:
+            lines += ["", "| Length | Closed | Ran to the end |",
+                      "| --- | --- | --- |"]
+            for row in by_len:
+                pct = row["completion_rate"]
+                shown = "-" if pct is None else f"{round(pct * 100)}%"
+                lines.append(f"| {row['planned_minutes']} min "
+                             f"| {row['closed']} | {shown} |")
+
+        best = focus.best_cycle_length(cycles)
+        lines.append("")
+        if best is None:
+            lines.append("- No length has enough closed cycles yet to "
+                         "say which one you finish most often. That is "
+                         "the honest answer, not a missing number.")
+        else:
+            lines.append(f"- You finish **{best}-minute** cycles most "
+                         f"often, of the lengths tried enough times to "
+                         f"compare.")
+
+        ids = [c["id"] for c in cycles if c.get("id") is not None]
+        load = focus.load_by_phase(ids, reports)
+        if load["reports"]:
+            start, end = (load["mean_reported_load_start"],
+                          load["mean_reported_load_end"])
+            lines += ["", f"- **{load['reports']} reports.** Mean "
+                      f"*reported* load: "
+                      f"{'-' if start is None else start} at the start, "
+                      f"{'-' if end is None else end} at the end."]
+            if load["mean_change"] is not None:
+                lines.append(f"- Mean change across a cycle: "
+                             f"**{load['mean_change']:+}**.")
+
+        rows = focus.compare_by_day_type(cycles, reports, days)
+        # A day type with no cycles comes back as a SHORT row -- day_type,
+        # cycles and a note, with no completion_rate -- and the kernel
+        # always emits one row per type, so "more than one row" was always
+        # true and told us nothing. Compare only the types that actually
+        # have cycles, and show the table only when two of them do: a
+        # comparison against an empty column is not a comparison.
+        rows = [r for r in rows if r.get("cycles")]
+        if len(rows) > 1:
+            lines += ["", "| Day | Cycles | Ran to the end | Reported load (end) |",
+                      "| --- | --- | --- | --- |"]
+            for r in rows:
+                pct = r["completion_rate"]
+                shown = "-" if pct is None else f"{round(pct * 100)}%"
+                end = r["mean_reported_load_end"]
+                lines.append(f"| {r['day_type'].title()} | {r['cycles']} "
+                             f"| {shown} | {'-' if end is None else end} |")
+            lines += ["", "> These are **observed differences, not "
+                      "causes.** A work day differs from a rest day in "
+                      "more ways than one record can separate -- sleep "
+                      "among them -- so this says what happened, never "
+                      "why."]
+
+        problems = focus.validate(cycles, reports, days)
+        if problems:
+            lines += ["", "**The record has structural problems:**"]
+            lines += [f"- {p}" for p in problems[:5]]
+
+        lines += ["", "*Every load figure is what you reported at the "
+                  "time, not a measurement of cognitive load.*"]
+        return {"ok": True, "markdown": True,
+                "message": nl_join(lines)}
 
     # --- conversation -----------------------------------------------------
     def send(self, text):

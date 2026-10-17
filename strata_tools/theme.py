@@ -60,6 +60,18 @@ FILLS = {
 # everything and cleared the blue fill by only 3.04:1; this one holds
 # 3.45:1 at its worst, which leaves room for a fill to be nudged later
 # without silently dropping under the line.
+# The focus ring. Lived in strata_tools/keyboard.py until 2026-10-17,
+# which was 239 lines of CustomTkinter focus handling for a shell retired
+# on 2026-09-01; this constant was the only part still used, and the web
+# shell's contrast tests are what use it. A colour belongs in the palette,
+# not in a module about widget traversal.
+#
+# White, and measured: 4.83:1 worst case against the surfaces it is drawn
+# on. WCAG 2.4.7 needs the ring visible; 1.4.11 needs it 3:1 against every
+# background, including the three mode fills.
+FOCUS_RING = "#FFFFFF"
+FOCUS_RING_WIDTH = 3
+
 OUTLINE = "#C0CAD5"
 OUTLINE_WIDTH = 1
 

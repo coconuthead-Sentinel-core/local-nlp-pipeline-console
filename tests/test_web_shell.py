@@ -19,7 +19,7 @@ ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
 sys.path.insert(0, ROOT)
 
 from strata_tools import theme
-from strata_tools.keyboard import FOCUS_RING
+from strata_tools.theme import FOCUS_RING
 from strata_tools.modes import MODES
 from strata_tools.wcag import contrast_ratio, meets_aa
 
@@ -478,3 +478,119 @@ class FocusCycleShellTests(unittest.TestCase):
             with self.subTest(word=banned):
                 self.assertNotIn(banned, self.js.lower())
                 self.assertNotIn(banned, self.html.lower())
+
+
+class GlyphKeyboardShellTests(unittest.TestCase):
+    """The codex keyboard, as the shipped shell carries it (ticket 6)."""
+
+    def setUp(self):
+        self.html = read(HTML_PATH)
+        self.js = read(JS_PATH)
+        self.css = read(CSS_PATH)
+
+    def test_every_control_exists(self):
+        for ident in ("kb-open", "kb-panel", "kb-rows", "kb-actions",
+                      "kb-says", "kb-type", "kb-clear"):
+            with self.subTest(control=ident):
+                self.assertIn(f'id="{ident}"', self.html)
+
+    def test_the_panel_toggle_declares_what_it_controls(self):
+        self.assertIn('aria-controls="kb-panel"', self.html)
+        self.assertIn('aria-expanded', self.html)
+        self.assertIn("aria-expanded", self.js)
+
+    def test_the_sequence_bar_announces_itself(self):
+        block = self.html.split('id="kb-says"')[1][:120]
+        self.assertIn('aria-live="polite"', block)
+
+    def test_the_keys_type_into_the_message_box(self):
+        """One input path, never two.
+
+        A second input path would mean commands, the pipeline and the
+        dictation polish could each see a different kind of message.
+        """
+        body = self.js.split("function kbInsert()")[1].split("\n}")[0]
+        self.assertIn("$('msg')", body)
+        self.assertNotIn("api.send", body)
+
+    def test_the_keys_are_real_buttons(self):
+        body = self.js.split("function kbKey(")[1].split("\n}")[0]
+        self.assertIn("createElement('button')", body)
+        self.assertIn("'kb-key'", body)
+
+    def test_a_key_carries_its_meaning_in_more_than_colour(self):
+        # WCAG 1.4.1: label plus a zone word on every key, aria-pressed
+        # for selection, and a thicker border rather than fill alone.
+        body = self.js.split("function kbKey(")[1].split("\n}")[0]
+        self.assertIn("aria-label", body)
+        self.assertIn("'kn'", body)
+        pressed = self.css.split('.kb-key[aria-pressed="true"]')[1][:160]
+        self.assertIn("border-width", pressed)
+
+    def test_an_unknown_code_is_named_not_swallowed(self):
+        self.assertIn("r.unknown", self.js)
+        self.assertIn("unknown: ", self.js)
+
+    def test_the_sequence_is_read_by_the_kernel_not_the_page(self):
+        # reads_as() is the grammar; the page must not reimplement it.
+        self.assertIn("api.codex_reads", self.js)
+        self.assertNotIn("', then '", self.js)
+
+    def test_the_keyboard_introduces_no_new_colour(self):
+        rules = self.css.split("--- glyph keyboard")[1]
+        self.assertNotRegex(rules, r"#[0-9A-Fa-f]{3,8}")
+
+
+class CycleSummaryShellTests(unittest.TestCase):
+    """What the recorded cycles say (ticket 7)."""
+
+    def setUp(self):
+        self.html = read(HTML_PATH)
+        self.js = read(JS_PATH)
+
+    def test_there_is_a_control_and_it_reaches_the_bridge(self):
+        self.assertIn('id="fx-stats"', self.html)
+        self.assertIn("api.focus_summary", self.js)
+
+    def test_the_summary_is_rendered_as_markdown(self):
+        body = self.js.split("async function fxStats()")[1].split("\n}")[0]
+        self.assertIn("markdown(", body)
+
+    def test_the_page_computes_no_statistic_of_its_own(self):
+        """Every figure comes from the kernel.
+
+        A mean computed in the page would be a second implementation of
+        a rule the kernel already owns and tests -- and the one in the
+        page would be the untested one.
+        """
+        body = self.js.split("async function fxStats()")[1].split("\n}")[0]
+        for forbidden in ("reduce(", "/ cycles.length", "Math.round"):
+            with self.subTest(pattern=forbidden):
+                self.assertNotIn(forbidden, body)
+
+
+class KeyboardReachTests(unittest.TestCase):
+    """The glyph panel must be reachable without a mouse (WCAG 2.1.1).
+
+    This project paid 239 lines and a Level A failure to learn that a
+    control only operable by click is a control some people cannot
+    operate. The Tk module that taught it is gone; the lesson is not.
+    """
+
+    def setUp(self):
+        self.js = read(JS_PATH)
+        self.html = read(HTML_PATH)
+
+    def test_alt_k_toggles_the_glyph_panel(self):
+        self.assertIn("e.altKey", self.js)
+        self.assertRegex(self.js, r"altKey[\s\S]{0,80}'k'")
+
+    def test_the_shortcut_is_documented_where_help_can_find_it(self):
+        from strata_tools import commands
+        self.assertIn("Alt+K", commands.COMMANDS["keys"])
+
+    def test_the_panel_toggle_is_a_real_button(self):
+        self.assertIn('<button id="kb-open"', self.html)
+
+    def test_the_stats_control_is_a_real_button(self):
+        self.assertIn('<button id="fx-stats"', self.html)

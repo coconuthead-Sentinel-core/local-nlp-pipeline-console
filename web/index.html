@@ -67,6 +67,8 @@
     <button id="fx-stop" class="ctl" type="button" hidden>Stop</button>
     <output id="fx-left" class="size" aria-live="polite"
             title="Time left in this cycle"></output>
+    <button id="fx-stats" class="ctl" type="button"
+            title="What the recorded cycles say">Stats</button>
   </div>
 
   <span class="spacer"></span>
@@ -132,7 +134,26 @@
   </button>
 </div>
 
+<!-- The glyph keyboard. Keys TYPE INTO the message box below, the
+     same box a hardware keyboard types into -- one input path, never
+     two, so commands, the pipeline and dictation polish all see one
+     kind of message. The sequence bar translates the chain as it is
+     built, so a chain can be checked without consulting a legend. -->
+<section id="kb-panel" class="kb" aria-label="Glyph keyboard" hidden>
+  <div id="kb-rows" class="kb-rows"></div>
+  <p class="kbd-lbl">Actions</p>
+  <div id="kb-actions" class="kb-row"></div>
+  <div class="kb-seq">
+    <output id="kb-says" aria-live="polite"></output>
+    <span class="spacer"></span>
+    <button id="kb-type" class="ctl" type="button">Insert</button>
+    <button id="kb-clear" class="ctl" type="button">Reset</button>
+  </div>
+</section>
+
 <form id="composer" class="composer" autocomplete="off">
+  <button id="kb-open" class="ctl" type="button" aria-expanded="false"
+          aria-controls="kb-panel">Glyphs</button>
   <label class="sr" for="msg">Message</label>
   <textarea id="msg" rows="1" placeholder="Type a message, or press Speak…"></textarea>
   <button id="send" class="ctl send" type="submit">Send</button>

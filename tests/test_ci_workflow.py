@@ -136,3 +136,56 @@ class WorkflowFileReferenceTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class NoRetiredToolkitTests(unittest.TestCase):
+    """No shipped module drives the toolkit this project retired.
+
+    Earned 2026-10-17. The CustomTkinter shell was retired on 2026-09-01
+    and `layout.py`, `window_fit.py` and `selection.py` were deleted with
+    it. `keyboard.py` -- 239 lines of Tk focus-ring handling, with 209
+    lines of tests that passed -- was missed, and sat in `strata_tools/`
+    for six weeks driving a toolkit nothing imports. Twenty green tests
+    made it look alive.
+
+    The sweep ends with a gate, per the shop's defect laws: a Tk-only
+    module reappearing in the shipped tree now fails here. `turbo_console.py`
+    is exempt and named -- it is a separate dormant tool that still
+    declares customtkinter in requirements.txt, documented as such.
+    """
+
+    EXEMPT = {"turbo_console.py"}
+
+    def shipped_python(self):
+        out = []
+        for base, dirs, files in os.walk(ROOT):
+            dirs[:] = [d for d in dirs
+                       if d not in {".git", "__pycache__", ".claude", "tools"}]
+            for f in files:
+                if f.endswith(".py") and f not in self.EXEMPT:
+                    out.append(os.path.join(base, f))
+        return out
+
+    def test_no_shipped_module_imports_the_retired_toolkit(self):
+        for path in self.shipped_python():
+            rel = os.path.relpath(path, ROOT)
+            with self.subTest(module=rel):
+                with open(path, encoding="utf-8") as fh:
+                    body = fh.read()
+                for line in body.splitlines():
+                    stripped = line.strip()
+                    if stripped.startswith(("import ", "from ")):
+                        self.assertNotIn(
+                            "customtkinter", stripped,
+                            f"{rel} imports the retired toolkit")
+                        self.assertNotIn(
+                            "import tkinter", stripped,
+                            f"{rel} imports tkinter")
+
+    def test_the_retired_tk_kernels_are_gone(self):
+        for name in ("layout.py", "window_fit.py", "selection.py",
+                     "keyboard.py"):
+            with self.subTest(module=name):
+                self.assertFalse(
+                    os.path.exists(os.path.join(ROOT, "strata_tools", name)),
+                    f"strata_tools/{name} belongs to the retired Tk shell")

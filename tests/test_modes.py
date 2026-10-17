@@ -11,7 +11,7 @@ import unittest
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
 sys.path.insert(0, ROOT)
 
-from strata_tools.keyboard import FOCUS_RING
+from strata_tools.theme import FOCUS_RING
 from strata_tools.modes import (ACTIVE_BORDER, ACTIVE_MARK, INACTIVE_BORDER,
                                 MODES, ORDER, TEXT, all_appearances,
                                 appearance, describe, is_mode, label_for,

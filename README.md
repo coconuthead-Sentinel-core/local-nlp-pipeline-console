@@ -112,6 +112,14 @@ answers "Requirement already satisfied", and changes nothing.
   data rather than treated as a failure. What it stores is a
   **self-report**, not a measurement of cognitive load: the distinction
   is what makes the data worth keeping.
+- **Glyph keyboard** — `/keys` or **Alt+K** opens the codex keyboard:
+  nineteen operators and eight action verbs, with a sequence bar that
+  reads the chain back in English as it is built. The keys type into the
+  message box, so there is one input path and not two.
+- **What your cycles say** — the **Stats** button or `/focus stats`
+  reports completion rate, a per-length table, the length you actually
+  finish most often, and reported load at each phase. Work days and rest
+  days are compared as **observed differences, never causes**.
 - **Graceful degradation** — if Ollama or the model is missing, the
   deterministic template engine answers and the UI says so honestly.
 
