@@ -72,6 +72,35 @@ class RuleBTests(unittest.TestCase):
             rules('root.geometry(window_fit.plan_geometry(w, h, s)[0])'), [])
 
 
+class RuleDTests(unittest.TestCase):
+    """A literal window size -- FB-001 returning in WebView2."""
+
+    def test_fires_on_the_exact_shape_that_shipped(self):
+        # strata_web.py as it stood until 2026-11-24.
+        self.assertEqual(
+            rules('webview.create_window(T, I, width=1000, height=680)'),
+            ["D", "D"])
+
+    def test_fires_on_a_literal_position_too(self):
+        self.assertEqual(
+            rules('webview.create_window(T, I, x=50, y=90)'), ["D", "D"])
+
+    def test_quiet_on_a_computed_size(self):
+        # The corrected shape: planned from the measured work area.
+        self.assertEqual(
+            rules('webview.create_window(T, I, x=x, y=y, '
+                  'width=width, height=height)'), [])
+
+    def test_quiet_on_the_resize_floor(self):
+        # min_size is a constant by nature and decides nothing about
+        # where the window opens.
+        self.assertEqual(
+            rules('webview.create_window(T, I, min_size=(640, 460))'), [])
+
+    def test_quiet_on_an_unrelated_call_with_a_width(self):
+        self.assertEqual(rules('draw_bar(width=1000)'), [])
+
+
 class RuleCTests(unittest.TestCase):
     """Install advice that cannot work -- earned 2026-08-31."""
 

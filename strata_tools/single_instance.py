@@ -115,3 +115,78 @@ def defer_message(pid):
     return (f"Strata Console is already running (process {pid}). "
             f"Bringing that window to the front instead of starting a "
             f"second one.")
+
+
+#: Windows appends this to the title of a window that has stopped
+#: pumping messages, and the ghost window carrying it belongs to
+#: ``dwm.exe`` rather than to the application at all.
+GHOST_SUFFIX = "(Not Responding)"
+
+
+def choose_raisable(candidates, lock_pid):
+    """Which window a standing-down launch should raise, or ``None``.
+
+    **The incident this exists for (2026-11-24).** The owner reported
+    that clicking the icon did nothing and the console never opened.
+    Reproduced by launching it the way the shortcut does: no window
+    appeared at all. The first console had stopped responding under
+    memory pressure, its process was still alive, so the lock said
+    "already running" -- and the raise step found a window with the
+    right title, called ``SetForegroundWindow`` on it, and reported
+    **success**. The launch then exited having opened nothing. Every
+    later click did the same. The console was not failing to start; it
+    was standing down, over and over, in favour of a corpse.
+
+    Two facts were available and unused. Windows knew the window was
+    hung -- it had already renamed the ghost "Strata Console -- web
+    shell *(Not Responding)*". And that ghost belongs to ``dwm.exe``,
+    so a title match alone could pick a window the application does
+    not even own.
+
+    ``candidates`` is what the shell gathered, one dict per window with
+    ``pid``, ``hung`` and ``title``. Pure: the OS questions are asked
+    outside and the choosing is arithmetic over their answers.
+
+    The order is the whole rule:
+
+    1. **Drop ghosts.** A title carrying ``(Not Responding)`` is
+       Windows' own stand-in, not the app's window.
+    2. **Drop hung windows.** Raising one is precisely what produced
+       "nothing happened"; it cannot come to the front.
+    3. **Prefer the process the lock names.** That is the instance we
+       stood down for. Another process with the same title is not it.
+    4. **Nothing left -> ``None``**, which the shell must treat as "no
+       window answered" and start normally. An app that will not open is
+       the louder defect, and that escape hatch already existed -- it
+       was simply never reachable, because "found" was being used where
+       "can actually be raised" was meant.
+    """
+    live = [c for c in (candidates or [])
+            if not str(c.get("title", "")).rstrip().endswith(GHOST_SUFFIX)
+            and not c.get("hung", False)]
+    if not live:
+        return None
+    if lock_pid is not None:
+        for c in live:
+            try:
+                if int(c.get("pid", -1)) == int(lock_pid):
+                    return c
+            except (TypeError, ValueError):
+                continue
+        # The lock's process has no raisable window of its own. Raising
+        # some other console's window would move a window the owner did
+        # not ask about and still leave this click unexplained.
+        return None
+    return live[0]
+
+
+def unresponsive_message(pid):
+    """What to say when the instance we stood down for is not answering.
+
+    Says the number, names the state, and states what happens next --
+    the three things whose absence made this take a week to see.
+    """
+    return (f"Strata Console (process {pid}) is running but not "
+            f"responding, so its window cannot be brought to the front. "
+            f"Starting a fresh console. The stuck one is still using "
+            f"memory -- closing it is worth doing.")

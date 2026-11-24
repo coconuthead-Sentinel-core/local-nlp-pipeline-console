@@ -12,6 +12,85 @@ root cause and the guard.
 
 ## [Unreleased]
 
+### Fixed — the JS bridge sent pywebview recursing into the window on every launch (2026-11-24)
+
+`FB-017` — [docs/FORMER_BUGS.md](docs/FORMER_BUGS.md). Found while
+measuring the two above.
+
+pywebview builds its bridge by walking `dir()` over the `js_api` object
+and recursing into non-callable attributes. `api.window = window` gave
+it a path into the WinForms `Form` and down
+`AccessibilityObject.Bounds.Empty.Empty.Empty…` until it hit Python's
+recursion limit — several hundred times, on the startup path, logged and
+discarded. Under `pythonw` there is no console, so nobody ever saw it.
+
+- `api.window` → **`api._window`**. The walker skips `_` names; the
+  upload dialog still has its native window.
+- Measured: the recursion errors are gone, and the new window reports
+  `IsHungAppWindow = false` where the old one reported true.
+
+### Fixed — clicking the icon stood down in favour of a hung console (2026-11-24)
+
+The other half of "it does not open", and the half that made it
+permanent. `FB-016` — [docs/FORMER_BUGS.md](docs/FORMER_BUGS.md).
+
+Once the first console stopped responding, its process stayed alive, so
+every later launch correctly deferred to it — and then reported success
+after calling `SetForegroundWindow` on a window that could not come to
+the front. The launch exited having opened nothing, and said nothing.
+Reproduced by launching the way the shortcut does: no window in 100
+seconds.
+
+- **`single_instance.choose_raisable()`** (new, pure) drops hung windows
+  and Windows' own `(Not Responding)` ghost — which belongs to
+  `dwm.exe`, and which the old `startswith` title match accepted — and
+  requires the window to belong to the process the lock names.
+- **`_raise_existing_window(lock_pid)`** now reads `IsHungAppWindow` per
+  window. Windows knew the answer the whole time.
+- **The decline speaks**: `unresponsive_message()` names the pid, the
+  state, that a fresh console is starting, and that the stuck one is
+  still holding memory.
+- **The fail-open branch is reachable at last.** It was written from the
+  start — "a lock naming a live process whose window cannot be found
+  starts normally too, saying so" — and `found` was standing in for
+  *can actually be raised*.
+- **Tests: 529 → 541.**
+
+### Fixed — the window opened 154px below the bottom of the screen (2026-11-24)
+
+Reported as "you click start and it just stays frozen and it does not
+open". It was opening; 154 pixels of it, the message box and Send among
+them, were below the edge of the display. `FB-015` —
+[docs/FORMER_BUGS.md](docs/FORMER_BUGS.md) carries the root cause.
+
+Measured on the owner's laptop, both instances running side by side at
+the same moment:
+
+| | Window | Work area | Bottom edge |
+| --- | --- | --- | --- |
+| before | 1000×633 at (50, 90) | 1097×529 at (0, 40) | 723 vs 569 — **154px off** |
+| after | 1000×481 at (48, 64) | 1097×529 at (0, 40) | 545 — fits, 24px clear |
+
+- **`strata_tools/window_fit.py` restored** as a pure kernel. It was
+  deleted on 2026-09-01 with the CustomTkinter shell it guarded, and the
+  defect it guarded against (FB-001) returned in WebView2 three weeks
+  later. `plan()` derives origin and size from the measured work area.
+- **`strata_web.py` plans the window** instead of passing
+  `width=1000, height=680`, and reads the work area through
+  `SPI_GETWORKAREA` with two named fallbacks.
+- **The measurement is printed at startup** — `🪟 window 1000x481 at
+  (48, 64) fits the work area 1097x529 at (0, 40) (from work area)`.
+  FB-001 ran for weeks because a window in the wrong place never
+  reported a number.
+- **Design-law rule D** (new) fails the build on a literal
+  `width`/`height`/`x`/`y` handed to `create_window`. Rule B watched
+  Tk's `geometry("WxH")` and so watched nothing at all once the shell
+  became HTML.
+- **Tests: 508 → 529.** `tests/test_window_fit.py` sweeps 17 work areas
+  × 8 desired sizes × 4 margins; `tests/test_ci_workflow.py` trades a
+  filename ban on `window_fit.py` for a content assertion that it exists
+  and carries no Tk.
+
 ### Removed — the token keys, leaving the keyboard empty (2026-10-17)
 
 Owner's instruction, straight after the pictures came off: with the emoji

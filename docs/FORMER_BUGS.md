@@ -548,6 +548,216 @@ have made the app defer to itself and never open. The lock sits in the
 install rather than `%TEMP%`, because the owner's own temp sweeps clear
 `%TEMP%` and a guard that vanishes guards nothing.
 
+## FB-015 — FB-001 came back in the new toolkit, because the guard was deleted with the old one
+
+**Status:** fixed, guarded · **Found:** 2026-11-24 · **Severity:** blocking
+
+**What the owner saw.** "You click start and it just stays frozen and it
+does not open."
+
+**What was actually wrong.** It opened. `strata_web.py` asked WebView2
+for `width=1000, height=680`. Measured on the owner's screen while he
+was reporting it:
+
+| | Window | Work area | Verdict |
+| --- | --- | --- | --- |
+| before | 1000×633 at (50, 90) | 1097×529 at (0, 40) | bottom edge 723 against 569 — **154px below the screen** |
+| after | 1000×481 at (48, 64) | 1097×529 at (0, 40) | bottom edge 545 — fits, 24px clearance |
+
+The 154 pixels below the edge are where the message box and the Send
+button live. A window whose only usable half is off the display is not a
+window that opened, and "it does not open" is the correct reading of it.
+
+**This is FB-001, in a second toolkit, fourteen weeks later.** FB-001 was
+the same defect under CustomTkinter on the same 1097×617 laptop, and its
+guard was `strata_tools/window_fit.py` plus design-law rule B. Both were
+removed on 2026-09-01 with the Tk shell they were written for. The
+register said so honestly at the time — *"What is not claimed: that those
+guards still run. They do not."* — and three weeks later the replacement
+shell hardcoded a size. The comment sitting directly on top of the call
+read "sized as a fraction of the screen rather than a fixed pixel count
+… there is no reason to import that mistake into a new shell", above
+`width=1000, height=680`. **A promise in a comment is not a guard.**
+
+Rule B did not fire because it watches `geometry("WxH")`, a Tk call that
+no longer exists anywhere in the shell. The linter was not broken; its
+rule had quietly stopped covering live code, which is the failure mode
+its own docstring warns about — *"a linter that cannot fire is worse than
+no linter, because it reads as proof."*
+
+Two things made it look like a freeze rather than a misplaced window.
+Free RAM was **698MB of 7,878** when the report came in, which is the
+FB-014 condition (764MB) where WebView2 cannot paint quickly. And the
+one measurement that would have settled it — the window's rectangle
+against the work area — was never taken, because nothing in the
+application took it.
+
+**The guard.**
+- `strata_tools/window_fit.py` is back as a pure kernel: `plan()`
+  computes origin and size from the measured work area, with the yielding
+  order stated and tested — margin yields to the resize floor, the floor
+  yields to the screen.
+- `tests/test_window_fit.py` — 15 tests, sweeping 17 work areas × 8
+  desired sizes × 4 margins and asserting the planned window lands inside
+  the work area on every edge. It asserts the shipped 1000×680 is
+  refused, that the measured 154px overrun is reported as an overrun, and
+  that FB-001's own 1750×1225 shape still fails.
+- Design-law **rule D** fails the build on a literal `width`/`height`/
+  `x`/`y` passed to `create_window` — the toolkit-appropriate successor
+  to rule B, proved both ways in `tests/test_design_laws.py`.
+- `window_fit.overflow()` and `describe()` are the predicate that is
+  *allowed* to fail, because they take numbers measured off the real
+  screen rather than computed by the kernel. NM-003's lesson kept: no
+  runtime check that cannot return False.
+- The console now prints the measurement at startup —
+  `🪟 window 1000x481 at (48, 64) fits the work area 1097x529 at (0, 40)
+  (from work area)` — so the next time a window is in the wrong place it
+  says so with numbers instead of being silent for weeks.
+- `tests/test_ci_workflow.py` previously banned the *filename*
+  `window_fit.py` as Tk-era. That ban was the mistake that let this
+  through, so it is replaced with a stronger content-based assertion: the
+  kernel must exist, and must contain no Tk API at all.
+
+**The standing law this earned.** When a shell, toolkit or subsystem is
+retired, every guard that goes with it is a defect re-opened unless its
+*reasoning* is re-homed in the new one. Deleting a guard is a scope
+change and gets recorded as one. The register's own preamble had already
+written the warning — "the reasoning outlived the toolkit … that mistake
+is available in any UI" — and it was read as a note about history rather
+than an instruction about the present.
+
+---
+
+## FB-016 — Every click stood down in favour of a corpse
+
+**Status:** fixed, guarded · **Found:** 2026-11-24 · **Severity:** blocking
+
+**What the owner saw.** The same sentence as FB-015 — "you click start
+and it just stays frozen and it does not open" — and this is the half
+that made it permanent. FB-015 explains a window in the wrong place.
+This explains why, after the first time, **no window appeared at all.**
+
+**What was actually wrong.** Reproduced by launching it exactly as the
+shortcut does (`wscript launch_strata.vbs`): no window appeared within
+100 seconds, and the launch had already exited reporting success.
+
+The first console had stopped responding under memory pressure. Its
+process was still alive, so the lock correctly said "already running"
+and the launch correctly stood down. Then `_raise_existing_window()`
+took the first window whose title *started with* the console's title,
+called `SetForegroundWindow` on it, and **returned True** — so the new
+launch exited having opened nothing, and said nothing. Every click after
+that did the same. The console was never failing to start; it was
+standing down, over and over, in favour of a window that could not come
+to the front.
+
+Two facts were sitting there unused:
+
+| Fact | Where it already was |
+| --- | --- |
+| the window was hung | `IsHungAppWindow()` — Windows answers this directly |
+| Windows had said so in words | the ghost window it renamed "Strata Console — web shell **(Not Responding)**" |
+
+And the ghost made it worse: that title *starts with* the console's
+title, so the prefix match accepted a window belonging to **`dwm.exe`**,
+not to the application at all. Measured during the repro — pid 1880 was
+`dwm`, and both real consoles reported `IsHungAppWindow = True`.
+
+The cruel part is that the correct behaviour was already written. The
+code carries the comment *"a lock naming a live process whose window
+cannot be found starts normally too, saying so"*, and that branch was
+**unreachable**, because `found` was being used where *can actually be
+raised* was meant. A fail-open path that cannot be reached is not a
+fail-open path.
+
+**The guard.**
+- `single_instance.choose_raisable(candidates, lock_pid)` — a pure
+  kernel. Drops ghost titles, drops hung windows, requires the window to
+  belong to the process the lock names, and returns `None` rather than
+  raising something else. The shell asks the OS; the choosing is
+  arithmetic over the answers.
+- `strata_web._raise_existing_window(lock_pid)` now gathers `pid` and
+  `IsHungAppWindow` per window and defers the decision to the kernel.
+- `single_instance.unresponsive_message()` — the decline speaks, with
+  the pid, the state, what happens next, and the fact that the stuck
+  process is still holding memory worth reclaiming.
+- `tests/test_single_instance.py` — 12 further tests covering the hung
+  window, the dwm ghost, the real window preferred over its own ghost,
+  another process's window refused, a minimised-but-healthy window still
+  raised, a corrupt lock, and an unparseable pid.
+
+**The standing law this earned.** *Found* is not *worked.* Any step that
+reports success must test the thing it claims to have achieved, not a
+proxy for it — a window raised, not a window located. This is the same
+class as FB-005 (the window fit the screen; the content did not fit the
+window) and FB-013 (the gate ran; nobody checked it passed), and that is
+three. Law 3 already said a silent decline is a defect; this adds that a
+**false claim of success** is worse, because it suppresses the retry the
+owner would otherwise make.
+
+---
+
+## FB-017 — The bridge handed pywebview the whole window, and it recursed until it gave up
+
+**Status:** fixed · **Found:** 2026-11-24 · **Severity:** major (startup cost)
+
+**What the owner saw.** Nothing directly — this one hid inside FB-015
+and FB-016 and was found while measuring them. It is in the register
+because it fired on **every single launch**, at the slowest moment of
+the slowest machine, and nothing ever said so.
+
+**What was actually wrong.** With `pythonw` there is no console, so the
+error went nowhere. Run with `py -3` and the startup printed this:
+
+```
+[pywebview] Error while processing window.native.AccessibilityObject
+.Bounds.Empty.Empty.Empty.Empty.Empty.Empty.Empty … (×400)
+: maximum recursion depth exceeded
+```
+
+`webview/util.py` builds the JavaScript bridge by walking `dir()` over
+the `js_api` object and **recursing into every non-callable attribute
+that has a `__module__`**. `strata_web.py` ended `main()` with:
+
+```python
+api.window = window          # 📎 Upload needs the native dialog
+```
+
+So the walker stepped from the bridge into pywebview's `Window`, from
+there into the WinForms `Form`, and then into
+`AccessibilityObject.Bounds` — a .NET `Rectangle`, whose `Empty`
+property is another `Rectangle`, whose `Empty` property is another
+`Rectangle`, forever. It unwound at Python's recursion limit and
+pywebview caught it, logged it and moved on to the next name in
+`dir()`, several hundred times.
+
+It never crashed, which is exactly why it survived: **a caught
+exception with nobody reading the log is invisible.** The cost landed on
+the one path that could least afford it, next to a 2.3GB model load on
+a machine with under 700MB free, and the symptom it contributed to —
+"frozen" — was being attributed to memory alone.
+
+**The fix is one underscore.** The walker skips names beginning with
+`_`, so the reference is now `api._window`. The upload dialog still has
+its native window; pywebview no longer has a door into it.
+
+Measured before and after, same machine, same question:
+
+| | Recursion errors at startup | New window hung? |
+| --- | --- | --- |
+| before | present, `maximum recursion depth exceeded` | yes — `IsHungAppWindow` true |
+| after | none | no |
+
+**The standing law this earned.** A library that walks your objects is
+part of your interface, whether you designed it that way or not. What
+gets attached to a bridge is a published surface, and `_` is how this
+one is told where the surface ends. More generally: an exception that is
+caught and logged where nobody looks is not handled, it is hidden —
+`pythonw` guarantees nobody looks, so the bench runs with a console
+before anything is called quiet.
+
+---
+
 ## Near-misses — caught before shipping, recorded because the reasoning is the value
 
 ### NM-010 — The gamification guard could not tell a ban from a reward

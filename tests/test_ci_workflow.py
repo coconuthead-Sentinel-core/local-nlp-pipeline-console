@@ -183,9 +183,37 @@ class NoRetiredToolkitTests(unittest.TestCase):
                             f"{rel} imports tkinter")
 
     def test_the_retired_tk_kernels_are_gone(self):
-        for name in ("layout.py", "window_fit.py", "selection.py",
-                     "keyboard.py"):
+        # window_fit.py was on this list until 2026-11-24, and the ban was
+        # wrong. The list is meant to prove the Tk SHELL did not creep
+        # back; window fitting is not a Tk concern, and the proof is that
+        # FB-001 recurred in WebView2 three weeks after the guard was
+        # deleted with the toolkit. Banning the name banned the lesson
+        # along with it -- exactly what FORMER_BUGS.md's preamble warns
+        # about: "the reasoning outlived the toolkit ... that mistake is
+        # available in any UI." The three below really are Tk-only.
+        for name in ("layout.py", "selection.py", "keyboard.py"):
             with self.subTest(module=name):
                 self.assertFalse(
                     os.path.exists(os.path.join(ROOT, "strata_tools", name)),
                     f"strata_tools/{name} belongs to the retired Tk shell")
+
+    def test_the_window_fit_kernel_is_back_and_carries_no_tk(self):
+        """Replaces the filename ban with a stronger, content-based one.
+
+        A guard loosened to let a change through is worth less than the
+        guard it replaced, so this asserts more than the ban did: the
+        kernel must exist (FB-015 has no guard without it) and must be
+        free of every Tk API the retired one used.
+        """
+        path = os.path.join(ROOT, "strata_tools", "window_fit.py")
+        self.assertTrue(
+            os.path.exists(path),
+            "the window-fit kernel is FB-015's guard; without it the "
+            "shell is back to a literal pixel size")
+        with open(path, encoding="utf-8") as fh:
+            body = fh.read()
+        for tk_api in ("tkinter", "winfo_", "geometry(", "CTk", "_scaling"):
+            self.assertNotIn(
+                tk_api, body,
+                f"window_fit.py contains {tk_api!r} -- this is the "
+                f"WebView2-era kernel, not the Tk one returning")

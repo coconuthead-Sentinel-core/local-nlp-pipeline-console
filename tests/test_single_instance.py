@@ -116,5 +116,81 @@ class PathTests(unittest.TestCase):
         self.assertNotIn("Temp", p)
 
 
+TITLE = "Strata Console — web shell"
+GHOST = TITLE + " " + si.GHOST_SUFFIX
+
+
+def win(pid, hung=False, title=TITLE):
+    return {"pid": pid, "hung": hung, "title": title}
+
+
+class ChooseRaisableTests(unittest.TestCase):
+    """FB-016 -- the click that deferred to a corpse, every time.
+
+    Reproduced on the owner's machine 2026-11-24: process 13064 alive,
+    its window hung, Windows showing a dwm ghost titled "... (Not
+    Responding)". Launching the way the shortcut does opened nothing at
+    all, and reported nothing either.
+    """
+
+    def test_a_healthy_window_of_the_locked_process_is_raised(self):
+        chosen = si.choose_raisable([win(13064)], 13064)
+        self.assertEqual(chosen["pid"], 13064)
+
+    def test_a_hung_window_is_never_chosen(self):
+        # The whole defect in one assertion.
+        self.assertIsNone(si.choose_raisable([win(13064, hung=True)], 13064))
+
+    def test_the_dwm_ghost_is_never_chosen(self):
+        # Belongs to dwm.exe, matched the old prefix test, and raising it
+        # did nothing while reporting success.
+        self.assertIsNone(
+            si.choose_raisable([win(1880, title=GHOST)], 13064))
+
+    def test_the_real_window_is_preferred_over_its_own_ghost(self):
+        chosen = si.choose_raisable(
+            [win(1880, hung=True, title=GHOST), win(13064)], 13064)
+        self.assertEqual(chosen["pid"], 13064)
+
+    def test_another_process_window_is_not_raised_in_its_place(self):
+        # Raising a console the owner did not ask about would move a
+        # window AND leave this click unexplained.
+        self.assertIsNone(si.choose_raisable([win(999)], 13064))
+
+    def test_a_minimised_but_healthy_window_is_still_raisable(self):
+        # FB-014 raised one that was minimised to -18286; being
+        # minimised is not being hung.
+        chosen = si.choose_raisable([win(23392)], 23392)
+        self.assertIsNotNone(chosen)
+
+    def test_no_candidates_at_all_yields_none(self):
+        self.assertIsNone(si.choose_raisable([], 13064))
+        self.assertIsNone(si.choose_raisable(None, 13064))
+
+    def test_a_corrupt_lock_falls_back_to_any_healthy_window(self):
+        # parse_lock returns None for a corrupt lock; a healthy console
+        # on screen is still better than claiming none exists.
+        chosen = si.choose_raisable([win(4242)], None)
+        self.assertEqual(chosen["pid"], 4242)
+
+    def test_a_corrupt_lock_still_refuses_a_hung_window(self):
+        self.assertIsNone(si.choose_raisable([win(4242, hung=True)], None))
+
+    def test_an_unparseable_pid_is_skipped_not_raised_on(self):
+        self.assertIsNone(si.choose_raisable([win("not-a-pid")], 13064))
+
+    def test_a_string_pid_matching_the_lock_still_matches(self):
+        # The integer-versus-string comparison that FB-014's tests call
+        # out as the bug that would make the app defer to itself.
+        chosen = si.choose_raisable([win("13064")], 13064)
+        self.assertIsNotNone(chosen)
+
+    def test_the_unresponsive_message_names_the_pid_and_what_happens(self):
+        msg = si.unresponsive_message(13064)
+        self.assertIn("13064", msg)
+        self.assertIn("not", msg.lower())
+        self.assertIn("starting a fresh console", msg.lower())
+
+
 if __name__ == "__main__":
     unittest.main()
