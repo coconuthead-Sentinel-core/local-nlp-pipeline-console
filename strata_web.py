@@ -42,7 +42,8 @@ from strata_tools import (codex, commands, context_sources, dictation,
                           single_instance,
                           focus,
                           session,
-                          speech)
+                          speech,
+                          window_fit)
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 INDEX = os.path.join(HERE, "web", "index.html")
@@ -69,7 +70,16 @@ class Api:
         # one thing here that must ask the native window rather than the
         # page: a browser <input type=file> hands back a sandboxed blob
         # with no path, and the indexer needs the real file.
-        self.window = None
+        # Underscored ON PURPOSE (FB-017). pywebview builds its JS
+        # bridge by walking dir() over this object and recursing into
+        # every non-callable attribute that has a __module__ -- and it
+        # skips names starting with "_". A public `self.window` sent it
+        # into the pywebview Window, on into the WinForms Form, and down
+        # AccessibilityObject.Bounds.Empty.Empty.Empty... until it hit
+        # Python's recursion limit, several hundred times, on the startup
+        # path. pywebview catches and logs each one, so it never crashed
+        # -- it just cost the slowest moment of the slowest machine.
+        self._window = None
         # --- context sources -------------------------------------------
         # State lives on the bridge, not in the page, so it survives a
         # reload and so the rule deciding what the model reads stays in
@@ -204,7 +214,7 @@ class Api:
         cheaper and more honest than rebuilding the extractors in
         JavaScript.
         """
-        if self.window is None:
+        if self._window is None:
             return {"ok": False,
                     "error": "The window is not ready yet — try again in "
                              "a moment."}
@@ -218,7 +228,7 @@ class Api:
         if open_dialog is None:
             open_dialog = webview.OPEN_DIALOG
         try:
-            picked = self.window.create_file_dialog(
+            picked = self._window.create_file_dialog(
                 open_dialog, allow_multiple=False,
                 file_types=(f"Readable files ({spec})", "All files (*.*)"))
         except Exception as e:
@@ -955,18 +965,29 @@ def _pid_alive(pid):
         k.CloseHandle(h)
 
 
-def _raise_existing_window():
+def _raise_existing_window(lock_pid=None):
     """Bring the console already running to the front.
 
     This is the whole point of standing down: the second click must
-    HELP. Finding nothing is reported false rather than guessed -- the
-    caller then starts normally, because a click that does nothing is
-    what produced three processes in the first place.
+    HELP. Returning False is reported rather than guessed -- the caller
+    then starts normally, because a click that does nothing is what
+    produced three processes in the first place.
+
+    **Why this takes a pid and asks about hangs (2026-11-24, FB-016).**
+    It used to take the first window whose title STARTED WITH the
+    console's title and report success after calling
+    ``SetForegroundWindow`` on it. Both halves were wrong. A hung
+    window cannot come to the front, so "success" meant the launch
+    exited having opened nothing; and Windows' own ghost window for a
+    hung app is titled "... (Not Responding)", which that prefix match
+    happily accepted even though the ghost belongs to ``dwm.exe``. The
+    choosing is now a tested kernel; this function only gathers the
+    facts the OS will answer and performs the effect.
     """
     import ctypes
     user32 = ctypes.windll.user32
     SW_RESTORE = 9
-    found = []
+    seen = []
 
     WNDENUMPROC = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_void_p,
                                      ctypes.c_void_p)
@@ -977,19 +998,70 @@ def _raise_existing_window():
             buf = ctypes.create_unicode_buffer(length + 1)
             user32.GetWindowTextW(hwnd, buf, length + 1)
             if buf.value.startswith(WINDOW_TITLE):
-                found.append(hwnd)
+                pid = ctypes.c_ulong()
+                user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+                seen.append({
+                    "hwnd": hwnd,
+                    "pid": int(pid.value),
+                    "title": buf.value,
+                    # Windows already knows. It renamed the ghost.
+                    "hung": bool(user32.IsHungAppWindow(hwnd)),
+                })
         return True
 
     try:
         user32.EnumWindows(WNDENUMPROC(each), None)
     except Exception:
         return False
-    if not found:
+    chosen = single_instance.choose_raisable(seen, lock_pid)
+    if chosen is None:
         return False
-    hwnd = found[0]
-    user32.ShowWindow(hwnd, SW_RESTORE)   # un-minimise, as PID 23392 was
-    user32.SetForegroundWindow(hwnd)
+    user32.ShowWindow(chosen["hwnd"], SW_RESTORE)   # un-minimise (PID 23392)
+    user32.SetForegroundWindow(chosen["hwnd"])
     return True
+
+
+def _work_area():
+    """``((x, y, w, h), source)`` -- the usable desktop, measured.
+
+    The work area, not the screen: it is the screen minus the taskbar,
+    and the taskbar is exactly where FB-001's missing send button went.
+    Two fallbacks, each named in the returned source so the startup line
+    says which number the window was planned from. An unanswerable
+    question returns ``None`` and the caller says so out loud rather than
+    quietly planning from a guess.
+    """
+    import ctypes
+
+    class RECT(ctypes.Structure):
+        _fields_ = [("left", ctypes.c_long), ("top", ctypes.c_long),
+                    ("right", ctypes.c_long), ("bottom", ctypes.c_long)]
+
+    SPI_GETWORKAREA = 0x0030
+    SM_CXSCREEN, SM_CYSCREEN = 0, 1
+    try:
+        user32 = ctypes.windll.user32
+    except Exception:
+        return (None, "no user32 (not Windows?)")
+    try:
+        r = RECT()
+        if user32.SystemParametersInfoW(SPI_GETWORKAREA, 0,
+                                        ctypes.byref(r), 0):
+            w, h = r.right - r.left, r.bottom - r.top
+            if w > 0 and h > 0:
+                return ((r.left, r.top, w, h), "work area")
+    except Exception:
+        pass
+    try:
+        w = int(user32.GetSystemMetrics(SM_CXSCREEN))
+        h = int(user32.GetSystemMetrics(SM_CYSCREEN))
+        if w > 0 and h > 0:
+            # The whole screen, taskbar included -- a worse number than
+            # the work area, which is why it is named as what it is.
+            return ((0, 0, w, h), "screen metrics (taskbar included)")
+    except Exception:
+        pass
+    return (None, "the display would not answer")
 
 
 def main():
@@ -1012,12 +1084,15 @@ def main():
     if verdict == single_instance.DEFER:
         pid, _started = single_instance.parse_lock(existing)
         print(single_instance.defer_message(pid))
-        if _raise_existing_window():
+        if _raise_existing_window(pid):
             return 0
-        # The lock says a console is running but no window answered.
-        # Starting is the safer failure: a missing window the owner can
-        # see beats an app that refuses to open and cannot say why.
-        print("No window answered, so starting a new console.")
+        # The lock says a console is running but no window answered --
+        # it is hung, or its window is gone. Starting is the safer
+        # failure: a missing window the owner can see beats an app that
+        # refuses to open and cannot say why. This branch existed from
+        # the start and was unreachable until FB-016, because the raise
+        # step reported success on a window it could not actually raise.
+        print(single_instance.unresponsive_message(pid))
     try:
         with open(lock, "w", encoding="utf-8") as fh:
             fh.write(single_instance.render_lock(
@@ -1026,22 +1101,43 @@ def main():
         pass          # a lock we cannot write is not worth failing over
 
     api = Api()
-    # Sized as a fraction of the screen rather than a fixed pixel count:
-    # the Tk shell's oldest defect was a hardcoded size that did not fit,
-    # and there is no reason to import that mistake into a new shell.
+    # Planned against the measured work area, never a fixed pixel count.
+    # This comment said exactly that on 2026-09-01 while the call below
+    # it passed width=1000, height=680 -- which on this laptop's 1097x529
+    # work area put 154 pixels of the application, the message box and
+    # Send among them, below the bottom of the screen. That is FB-001 in
+    # a second toolkit, and it came back because the guard was deleted
+    # with the first one. The arithmetic is a tested kernel again
+    # (strata_tools/window_fit.py, swept in tests/test_window_fit.py)
+    # and design-law rule D fails the build on a literal size here.
+    work, source = _work_area()
+    if work is None:
+        rect = (None, None, window_fit.DESIRED_W, window_fit.DESIRED_H)
+        print(f"⚠ Window size not planned: {source}. Asking for "
+              f"{window_fit.DESIRED_W}x{window_fit.DESIRED_H} unchecked -- "
+              f"if controls are off screen, drag the window up.")
+    else:
+        rect = window_fit.plan(window_fit.DESIRED_W, window_fit.DESIRED_H,
+                               work)
+        # Said out loud with numbers. FB-001 ran for weeks because a
+        # window that was wrong on screen never reported a measurement.
+        print(f"🪟 {window_fit.describe(rect, work)} (from {source})")
+    x, y, width, height = rect
     window = webview.create_window(
         WINDOW_TITLE,
         INDEX,
         js_api=api,
-        width=1000,
-        height=680,
-        min_size=(640, 460),
+        x=x,
+        y=y,
+        width=width,
+        height=height,
+        min_size=(window_fit.MIN_W, window_fit.MIN_H),
         background_color="#12161A",
     )
     # The bridge needs the window back: 📎 Upload opens the window's own
     # native dialog, because a page-side file input returns a sandboxed
     # blob and the text extractors read from a real path.
-    api.window = window
+    api._window = window
     # Edge WebView2 explicitly: it is present on this machine and the
     # alternative backends are not, so failing loudly beats falling back
     # to something untested.

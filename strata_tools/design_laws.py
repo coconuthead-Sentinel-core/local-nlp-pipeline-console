@@ -19,7 +19,13 @@ still scanned, and if a Tk widget ever returns the tripwire should
 already be in place rather than needing to be remembered. What must not
 happen is either rule being read as ongoing proof that the shipped
 shell is safe -- the shell contains no Tk at all, so they say nothing
-about it either way. Rule C is the one that still guards live code.
+about it either way.
+
+**That warning came true, and rule D exists because of it (2026-11-24).**
+Rule B watched a Tk call the shell no longer makes, so it watched
+nothing; three weeks after the retirement the window was created with a
+literal size and opened 154 pixels below the bottom of the owner's
+screen (FB-015). Rules **C and D** are the two that guard live code.
 
   **A  Tuple padding in a widget CONSTRUCTOR.**
      ``pady=(12, 4)`` is valid in ``.pack()`` and ``.grid()`` and raises
@@ -33,6 +39,16 @@ about it either way. Rule C is the one that still guards live code.
      screen. Sizes must derive from ``winfo_screenwidth/height`` --
      ``strata_tools/window_fit.py`` is the sanctioned way. f-strings are
      allowed precisely because they are how a computed size arrives.
+
+  **D  A literal pixel size passed to ``create_window``.**
+     Rule B's trap, in the toolkit that replaced Tk. Rule B watches
+     ``geometry("WxH")`` and so watched nothing at all once the shell
+     became HTML in a WebView2 window -- and three weeks later that
+     window was created with ``width=1000, height=680`` on a 1097x529
+     work area, putting the message box and Send below the screen. Sizes
+     and positions must be computed from the measured work area;
+     ``strata_tools/window_fit.plan`` is the sanctioned way. A name or
+     any expression passes, because that is how a computed size arrives.
 
   **C  A "pip install" instruction that does not name the interpreter.**
      Earned 2026-08-31. The console told the owner to ``pip install
@@ -69,6 +85,13 @@ WIDGETS = {
 
 _GEOMETRY_RE = re.compile(r"^\d+x\d+")
 _INSTALL_RE = re.compile(r"pip\s+install", re.IGNORECASE)
+
+#: Window-creating calls rule D watches, and the keywords that carry a
+#: size or a position. ``min_size`` is deliberately absent: a resize
+#: floor is a constant by nature and does not decide where the window
+#: opens.
+_WINDOW_FACTORIES = {"create_window"}
+_PIXEL_KWARGS = ("width", "height", "x", "y")
 
 
 class Finding:
@@ -163,6 +186,22 @@ def scan_source(src):
                         f"{tail}(... {kw.arg}=(tuple) ...) -- tuple padding "
                         f"in a constructor raises 'bad screen distance'; "
                         f"move it to .pack() or .grid()"))
+
+        # --- Rule D: a literal window size or position -----------------
+        if tail in _WINDOW_FACTORIES:
+            for kw in node.keywords:
+                if kw.arg not in _PIXEL_KWARGS:
+                    continue
+                value = kw.value
+                if (isinstance(value, ast.Constant)
+                        and isinstance(value.value, int)
+                        and not isinstance(value.value, bool)):
+                    findings.append(Finding(
+                        node.lineno, "D",
+                        f"{tail}(... {kw.arg}={value.value} ...) -- a "
+                        f"literal pixel size does not know how big the "
+                        f"screen is and put Send below the bottom edge; "
+                        f"compute it with window_fit.plan"))
 
         # --- Rule B: hardcoded geometry --------------------------------
         if tail == "geometry" and node.args:
