@@ -12,6 +12,45 @@ root cause and the guard.
 
 ## [Unreleased]
 
+### Changed — the browser snapshot is now a repo-side build, not an Artifact mirror (2026-11-25)
+
+The Prompt Library (PR #2) was written against the **108,563-byte**
+snapshot and had been open long enough that `main` moved 19 commits past
+it, re-filing the snapshot at **235,333 bytes**. Merging it as it stood
+would have replaced the larger snapshot with a 124,219-byte one and
+silently dropped the Omega-1 overlays, the glyph keyboard, Sheets,
+`/find` and `/export` that `main` had recorded since.
+
+So it was rebased rather than merged: the Prompt Library's five hunks
+were re-applied on top of the current snapshot.
+
+| | Bytes | SHA256 |
+| --- | --- | --- |
+| before (main) | 235,333 | `0cfe0684…fa2cc1` |
+| PR #2 as written | 124,219 | superseded, never merged |
+| **after (this build)** | **250,975** | **`d145859299b3cdf11657234cdb55ca1e80d42c40e9acb7290c93da33948e22ac`** |
+
+Two conflicts were resolved by hand, both keeping `main`'s newer work:
+
+- The `COMMANDS` help map — `main`'s thirteen entries kept, with
+  `promptlib` added. PR #2's eight-entry version would have removed
+  `avatar`, `keyboard`, `sheet`, `overlay`, `find` and `export`.
+- The dispatch path in `send()` — `main`'s **H6 snapshot-at-dispatch**
+  block kept in full, with PR #2's `promptlib.retrieve()` injection
+  placed ahead of it. PR #2 still read the live `zone`; `main` reads the
+  frozen `turnZone`. Taking PR #2's side verbatim would have undone H6
+  and let a control flipped mid-answer rewrite a turn already in flight.
+
+**What this file now is.** Until today `strata_console_browser.html` was
+a byte-for-byte snapshot of the published Artifact, and its hash could be
+diffed against the live page. It no longer can: this build exists only in
+the repository. It is the browser build's **source of record**, not a
+mirror, and the hash above attests to the file in this commit and to
+nothing else. Re-filing a true snapshot means publishing this build to
+the Artifact and exporting it back — an owner decision, filed in
+docs/OPEN_DECISIONS.md, not taken here.
+
+
 ### Fixed — the JS bridge sent pywebview recursing into the window on every launch (2026-11-24)
 
 `FB-017` — [docs/FORMER_BUGS.md](docs/FORMER_BUGS.md). Found while
@@ -461,16 +500,74 @@ desktop shell, engine, tools and tests are untouched.
   proved the file matched a September snapshot, while reading as though
   it proved the file matched the published build. A stale snapshot is
   worse than an absent one, because it looks like a record.
+The **browser build**'s documentation gate and its first shipped
+feature. Nothing in the Python desktop app changes; the desktop shell,
+engine, tools and tests are untouched.
+
+### Added
+- **Prompt Library v1** in the browser build (`strata_console_browser.html`).
+  Every completed pod exchange is captured, classified into one of ten
+  fixed Dewey-style drawers (A–J) with a per-drawer arrival coordinate,
+  and searched on the next message so the assistant can flag anything
+  already tried. Lives under its own storage key `strata_promptlib_v1`,
+  fully separate from the conversation stores and the Knowledge Base.
+  Includes a `/promptlib` command showing counts, coordinates and
+  storage used. Blueprint: `docs/PROMPT_LIBRARY_BLUEPRINT.md`.
+
+  Design gaps flagged in the blueprint's Copilot review are closed in
+  this v1:
+  - **Coordinates never collide** after delete or prune. A monotonic
+    per-class sequence (`nextRow`) is only ever incremented; pruned or
+    deleted records leave gaps rather than freeing the number.
+  - **Ties are deterministic.** Classification breaks ties to the
+    earliest class in A→I order. J is used only when every score is
+    zero.
+  - **Shared-quota safety.** Cap is 400 records **or** 2.5 MB serialized,
+    whichever first (measured with `TextEncoder`, not UTF-16 code
+    units, so non-ASCII payloads count accurately). Every write is
+    guarded — a `QuotaExceededError` from another store crowding
+    localStorage triggers a snapshot-and-prune with a **visible warning
+    in the transcript** so nothing is silently lost, and points the
+    user at `/promptlib export` to save an archive before more records
+    are pruned. A two-strike quota failure rolls RAM back to the
+    pre-capture state so the in-memory view matches disk (no mixed
+    state that could overwrite older records on the next successful
+    write).
+  - **Reproducible classification.** The keyword lexicons for A–I are
+    listed in the module; tokenizing is lower-case word-boundary
+    matching; each keyword hit is one point (multiplicity counts); J
+    is the zero-score fallback. This is v1; classes and coords stay
+    editable — the machine files, the librarian corrects.
+  - **Retrieval de-noised.** Query and record text are compared on
+    content tokens only — a small stopword list strips filler words
+    like "a", "do", "the", "for" so a message mentioning them doesn't
+    drag every stored record into context.
+  - **`/promptlib export`** dumps the whole archive as JSON in the
+    transcript, so pruned records can be saved elsewhere before the
+    browser store runs out of room. `/promptlib` itself always shows
+    each drawer's next coord (including empty drawers, which start at
+    row 1).
+
+  The full Library-drawer UI (browse, re-file, delete, export) is a
+  follow-up increment per the blueprint's "small increments" gate.
+- **`strata_console_browser.html`** at the repository root — filed as
+  the permanent on-repo reference alongside the Artifact link and the
+  Google Docs / OneDrive record. Initially a byte-for-byte snapshot of
+  the published Artifact (commit `2e06070`, 108,563 bytes, SHA256
+  `6e99db91ef61c656b0ffe1682408764f26f7bf42f660171569e4be888b2d9241`).
+  With Prompt Library v1 added, this file is now the browser build's
+  living source rather than a snapshot; a future re-publish of the
+  Artifact resyncs the two.
 - **[`docs/PROMPT_LIBRARY_BLUEPRINT.md`](docs/PROMPT_LIBRARY_BLUEPRINT.md)** —
-  v1 blueprint for the browser build's Prompt Library. Ten fixed
-  Dewey-style classes (A–J) with keyword-scored classification, one
-  record per completed pod exchange stored under `strata_promptlib_v1`
-  (400-record / 2.5 MB cap, export-then-prune at the cap), retrieval
-  labelled as past-conversation memory, and a `/promptlib` command.
-  Includes the storage-tier proposal (hot / warm / archival to Google
-  Drive), pseudocode, and the ISO/IEC/IEEE 12207 process gate. Status:
-  **BLUEPRINT — no code until owner approval.**
-- **README section "Browser build"** — points at the on-repo snapshot,
+  v1 blueprint. Ten fixed Dewey-style classes (A–J) with keyword-scored
+  classification, one record per completed pod exchange stored under
+  `strata_promptlib_v1` (400-record / 2.5 MB cap, export-then-prune at
+  the cap), retrieval labelled as past-conversation memory, and a
+  `/promptlib` command. Includes the storage-tier proposal (hot / warm
+  / archival to Google Drive), pseudocode, and the ISO/IEC/IEEE 12207
+  process gate. **Owner-approved; v1 implementation lands under this
+  `[Unreleased]`.**
+- **README section "Browser build"** — points at the on-repo file,
   explains its relationship to the desktop app documented above it, and
   names the Prompt Library as the first browser-side feature scoped
   through the documentation gate.
@@ -557,6 +654,14 @@ both build targets, and for four days it was the record for only one.
 - **Stray files cleared from the repository root** -- an empty `e.txt`,
   the `.coverage` pytest-cov artifact, and a Windows shortcut to an
   unrelated project. `.gitignore` gained `.coverage` and `*.lnk`.
+### Integrity
+- After Prompt Library v1 with review-round fixes: 124,219 bytes, SHA256
+  `22739c3391add560ffca89b5c3e7db0ae0ce668157fe63baca288a3d0fc02e5c`.
+  A `sha256sum strata_console_browser.html` matching this value confirms
+  the file has not drifted since v1 was filed. (Earlier v1 draft was
+  120,357 bytes / `0bce3992…`; superseded by review fixes for UTF-16
+  byte accounting, retrieval de-noising, empty-drawer display, quota
+  rollback consistency, and the `/promptlib export` command.)
 
 ## [2.2.0] — 2026-09-02
 
