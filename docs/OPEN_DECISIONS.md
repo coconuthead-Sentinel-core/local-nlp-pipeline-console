@@ -14,7 +14,18 @@ Opened 2026-10-17.
 
 ## OD-001 — Prompt Library v1 exists on a branch that cannot be merged
 
-**Status:** open, awaiting owner decision · **Opened:** 2026-10-17
+**Status: CLOSED 2026-11-24 — resolved by option 1.** The branch was
+rebased onto the current snapshot and merged (`b2e6295`, then `a01f08b`).
+The published browser build now carries the Prompt Library; the snapshot
+in this repository shows 35 `promptlib` references where it had none.
+Nothing was lost and the integrity line still means what it says.
+
+The record below is kept as written, because the reasoning is the value:
+it is why the obvious move — merging the branch as it stood — would have
+replaced a current snapshot with one four days behind, and why rebasing
+first was the step that made the merge safe.
+
+**Opened:** 2026-10-17
 **Blocks:** deleting branch `claude/zealous-babbage-m6ltou`; closing
 [PR #2](https://github.com/coconuthead-Sentinel-core/local-nlp-pipeline-console/pull/2)
 
@@ -128,12 +139,12 @@ single stored row.
 
 ---
 
-## Branch state while OD-001 is open
+## Branch state (OD-001 closed 2026-11-24)
 
 | Branch | Why it exists | Deletable? |
 | --- | --- | --- |
 | `main` | the trunk | no |
 | `forge-work` | the git worktree at `Desktop\.claude\worktrees\strata` is checked out on it | no, not while that worktree exists |
-| `claude/zealous-babbage-m6ltou` | holds PR #2 — see OD-001 | **no**, holds unmerged work |
+| `claude/zealous-babbage-m6ltou` | held PR #2 | **yes, now** — OD-001 closed 2026-11-24, the work is merged |
 
 Every branch in this repository is accounted for. None is a leftover.
