@@ -24,7 +24,7 @@ import os
 import sqlite3
 from datetime import datetime
 
-from strata_tools import codex, focus, session
+from strata_tools import cards, codex, focus, session
 
 # Reading fonts offered to the owner, best-first (ported from Sentinel
 # Forge). CORRECTED 2026-09-01 -- the previous comment here claimed these
@@ -151,6 +151,13 @@ class StrataDB:
         # same hazard, so focus.SCHEMA is the single definition and
         # this loop is the only place it runs.
         for statement in focus.SCHEMA:
+            self.conn.execute(statement)
+        # Note cards on the A1 grid. Ported from the browser build on
+        # 2026-11-27 -- the feature was written in the published page and
+        # the laptop never got it, because the only thing that reached
+        # the repository was a snapshot of that page, which is a record
+        # and not code. Schema from the kernel, as always.
+        for statement in cards.SCHEMA:
             self.conn.execute(statement)
         self.conn.commit()
 
@@ -317,6 +324,73 @@ class StrataDB:
         return [dict(r) for r in self.conn.execute(
             "SELECT day, day_type, shift_position, hours_slept "
             "FROM focus_days ORDER BY day").fetchall()]
+
+    # --- note cards on the A1 grid --------------------------------------
+    # The rules are in strata_tools/cards.py. These move dicts in and out
+    # and decide nothing: a reader asking what a cell MEANS goes to the
+    # kernel, a reader asking where it is STORED stays here.
+
+    def save_card(self, card):
+        """Write a card. The cell is unique, so this replaces by address.
+
+        Two cards at H5 would make "go to H5" ambiguous, which defeats
+        the whole point of an address -- so the address, not a row id, is
+        what identity means here.
+        """
+        self.conn.execute(
+            "INSERT INTO cards (cell, title, body, zone, load, created, "
+            "updated) VALUES (?, ?, ?, ?, ?, ?, ?) "
+            "ON CONFLICT(cell) DO UPDATE SET "
+            "title=excluded.title, body=excluded.body, zone=excluded.zone, "
+            "load=excluded.load, updated=excluded.updated",
+            (card["cell"], card["title"], card.get("body", ""),
+             card["zone"], card.get("load"), card["created"],
+             card.get("updated")),
+        )
+        self.conn.commit()
+        return card["cell"]
+
+    def cards(self):
+        """Every card. Order is the caller's business -- the owner has two
+        reading directions and the store must not pick one for him."""
+        return [dict(r) for r in self.conn.execute(
+            "SELECT id, cell, title, body, zone, load, created, updated "
+            "FROM cards").fetchall()]
+
+    def card_at(self, cell):
+        """One card by address, or None."""
+        row = self.conn.execute(
+            "SELECT id, cell, title, body, zone, load, created, updated "
+            "FROM cards WHERE cell = ?", (str(cell).upper(),)).fetchone()
+        return dict(row) if row else None
+
+    def delete_card(self, cell):
+        """There is no delete. Kept as a named refusal so the absence is
+        a decision a reader can find, rather than a gap they assume is an
+        oversight -- archive, never delete (SCOPE.md section 3)."""
+        raise NotImplementedError(
+            "cards are archived by zone, never deleted; move the card to "
+            "RED instead")
+
+    def save_card_link(self, link):
+        """Join two cards. Append-only; a link is a fact about a moment."""
+        cur = self.conn.execute(
+            "INSERT INTO card_links (src, dst, relation) VALUES (?, ?, ?)",
+            (link["src"], link["dst"], link["relation"]),
+        )
+        self.conn.commit()
+        return cur.lastrowid
+
+    def card_links(self, cell=None):
+        """Links, optionally only those touching one card."""
+        sql = "SELECT id, src, dst, relation FROM card_links"
+        args = ()
+        if cell is not None:
+            sql += " WHERE src = ? OR dst = ?"
+            up = str(cell).upper()
+            args = (up, up)
+        sql += " ORDER BY id"
+        return [dict(r) for r in self.conn.execute(sql, args).fetchall()]
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # PIPELINE STAGES
