@@ -442,3 +442,58 @@ select.ctl { padding-right: 8px; }
   border-top: 1px solid var(--frame);
   margin-top: 10px; padding-top: 8px; font-size: .9em;
 }
+
+/* --- note cards --------------------------------------------------------
+   The measured palette again, no new colour, so the contrast audit in
+   tests/test_web_shell.py still covers every pair here. A drawer:
+   bounded, and collapsed to nothing while hidden. */
+.cards {
+  background: var(--surface);
+  border: 1px solid var(--frame);
+  border-radius: 8px;
+  padding: 10px 14px;
+  max-height: 44vh;
+  overflow-y: auto;
+}
+.cd-row {
+  display: flex; align-items: center; gap: 8px;
+  flex-wrap: wrap; margin-bottom: 8px;
+}
+.cd-in {
+  flex: 1 1 14ch; min-width: 0;
+  font: inherit; font-size: .9em;
+  color: var(--ink); background: var(--ground);
+  border: 1px solid var(--outline); border-radius: 6px;
+  padding: 8px 10px; min-height: 44px;
+}
+.cd-in::placeholder { color: var(--ink-mute); }
+.cd-cell { flex: 0 0 7ch; }
+textarea.cd-in { min-height: 66px; resize: vertical; }
+.cd-list { display: flex; flex-direction: column; gap: 6px; }
+/* A card row is a real button: the whole row is the control that opens
+   it, so the hit area is the row and not a link inside it. */
+.cd-card {
+  font: inherit; text-align: left;
+  color: var(--ink); background: var(--ground);
+  border: 1px solid var(--frame); border-radius: 6px;
+  padding: 8px 10px; min-height: 44px; cursor: pointer;
+  display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
+}
+.cd-card:hover { background: var(--fill-hi); }
+.cd-cellname {
+  font-family: ui-monospace, Consolas, monospace;
+  font-weight: 700; flex: 0 0 5ch;
+}
+.cd-meta { color: var(--ink-mute); font-size: .85em; margin-left: auto; }
+/* The zone is carried by a word, never by colour alone (WCAG 1.4.1). */
+.cd-zone {
+  font-size: .78em; text-transform: uppercase; letter-spacing: .05em;
+  border: 1px solid var(--outline); border-radius: 999px; padding: 1px 8px;
+}
+.cd-empty {
+  color: var(--ink-mute); font-size: .9em;
+  border: 1px dashed var(--frame); border-radius: 6px;
+  padding: 10px; text-align: center;
+}
+.cd-new { margin-top: 10px; border-top: 1px solid var(--frame); padding-top: 8px; }
+.cd-new summary { cursor: pointer; color: var(--ink); font-size: .9em; min-height: 44px; }

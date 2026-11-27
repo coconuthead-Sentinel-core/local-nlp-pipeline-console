@@ -839,6 +839,129 @@ async function fxStats() {
   const r = await api.focus_summary();
   turn('Strata', markdown(r.message));
 }
+
+/* ---------- note cards ------------------------------------------------
+   The grid rules live in strata_tools/cards.py and the store in
+   StrataDB. This draws what the bridge hands back and computes no
+   address of its own -- a second copy of the rule in the page would be
+   the untested one. */
+
+let cdOrder = 'ROW_MAJOR';
+
+function cdOrderLabel() {
+  return cdOrder === 'ROW_MAJOR' ? 'Reading: across' : 'Reading: down';
+}
+
+async function cdRender(query) {
+  if (!api) return;
+  const v = await api.cards_view(cdOrder, query === undefined
+    ? $('cd-q').value : query);
+  cdOrder = v.order;
+  $('cd-order').textContent = cdOrderLabel();
+
+  const zone = $('cd-zone');
+  if (!zone.children.length) {
+    (v.zones || []).forEach((z) => {
+      const o = document.createElement('option');
+      o.value = z; o.textContent = z.toLowerCase();
+      zone.appendChild(o);
+    });
+  }
+  /* Suggest the next free cell rather than making him remember what is
+     taken -- the question behind "is H5 free" is "where do I put this". */
+  if (!$('cd-cell').value) $('cd-cell').placeholder = v.nextFree || 'A1';
+
+  const list = $('cd-list');
+  list.textContent = '';
+  if (!v.cards.length) {
+    const p = document.createElement('p');
+    p.className = 'cd-empty';
+    p.textContent = v.total
+      ? 'Nothing matches that. ' + v.total + ' cards filed.'
+      : 'No cards yet. File one below -- give it a cell like A1, and a title.';
+    list.appendChild(p);
+    return;
+  }
+  v.cards.forEach((c) => list.appendChild(cdCard(c)));
+}
+
+function cdCard(c) {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'cd-card';
+  b.setAttribute('role', 'listitem');
+  b.setAttribute('aria-label', 'Card ' + c.cell + ', ' + c.title);
+
+  const cell = document.createElement('span');
+  cell.className = 'cd-cellname';
+  cell.textContent = c.cell;
+
+  const title = document.createElement('span');
+  title.textContent = c.title;
+
+  const meta = document.createElement('span');
+  meta.className = 'cd-meta';
+  const zone = document.createElement('span');
+  zone.className = 'cd-zone';
+  zone.textContent = (c.zone || '').toLowerCase();   /* a word, not a colour */
+  meta.appendChild(zone);
+  if (c.load !== null && c.load !== undefined) {
+    meta.appendChild(document.createTextNode(' load ' + c.load));
+  }
+
+  b.appendChild(cell); b.appendChild(title); b.appendChild(meta);
+  b.addEventListener('click', () => cdOpen(c));
+  return b;
+}
+
+async function cdOpen(c) {
+  /* Opening a card loads it into the form, so the same control files a
+     new card and edits an old one. Two forms would be two places for the
+     same rule to drift. */
+  $('cd-new').open = true;
+  $('cd-cell').value = c.cell;
+  $('cd-title').value = c.title || '';
+  $('cd-body').value = c.body || '';
+  $('cd-zone').value = c.zone || 'GREEN';
+  $('cd-load').value = (c.load === null || c.load === undefined) ? '' : c.load;
+  $('cd-said').textContent = '';
+
+  const near = await api.cards_around(c.cell);
+  if (near && near.ok) {
+    const around = Object.keys(near.around)
+      .filter((d) => near.around[d])
+      .map((d) => d + ' ' + near.around[d].cell);
+    $('cd-said').textContent = around.length
+      ? 'Around it: ' + around.join(', ')
+      : 'Nothing filed next to it yet.';
+  }
+}
+
+async function cdSave() {
+  if (!api) return;
+  const r = await api.cards_save(
+    $('cd-cell').value || $('cd-cell').placeholder,
+    $('cd-title').value, $('cd-body').value,
+    $('cd-zone').value, $('cd-load').value);
+  /* A rejected card says WHY, naming the field. Swallowing it and
+     saving something nearly right is how a grid fills with rows he did
+     not mean. */
+  $('cd-said').textContent = r.message;
+  if (!r.ok) return;
+  $('cd-cell').value = '';
+  $('cd-title').value = '';
+  $('cd-body').value = '';
+  $('cd-load').value = '';
+  await cdRender();
+  note(r.message);
+}
+
+function cdShow(on) {
+  $('cards-panel').hidden = !on;
+  $('cards-open').setAttribute('aria-expanded', String(!!on));
+  if (on) cdRender();
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   $('composer').addEventListener('submit', (e) => { e.preventDefault(); send(); });
 
@@ -989,6 +1112,19 @@ document.addEventListener('DOMContentLoaded', () => {
     () => kbShow($('kb-panel').hidden));
   $('kb-type').addEventListener('click', kbInsert);
   $('kb-clear').addEventListener('click', kbReset);
+
+  $('cards-open').addEventListener('click',
+    () => cdShow($('cards-panel').hidden));
+  $('cd-go').addEventListener('click', () => cdRender());
+  $('cd-all').addEventListener('click', () => { $('cd-q').value = ''; cdRender(''); });
+  $('cd-save').addEventListener('click', cdSave);
+  $('cd-order').addEventListener('click', () => {
+    cdOrder = cdOrder === 'ROW_MAJOR' ? 'COLUMN_MAJOR' : 'ROW_MAJOR';
+    cdRender();
+  });
+  $('cd-q').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); cdRender(); }
+  });
 
   window.addEventListener('pywebviewready', boot);
   if (window.pywebview && window.pywebview.api) boot();

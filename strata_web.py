@@ -743,6 +743,87 @@ class Api:
         return {"ok": True, "markdown": True,
                 "message": nl_join(lines)}
 
+    # --- note cards on the A1 grid ----------------------------------------
+    # Rules in strata_tools/cards.py, storage in StrataDB. These four move
+    # dicts between them and decide nothing -- the panel draws what it is
+    # handed and computes no address of its own.
+
+    def cards_view(self, order="ROW_MAJOR", query=""):
+        """The grid as the panel should draw it.
+
+        One method for both the full grid and a search, because the owner
+        has one box: an empty query is the whole grid, a cell jumps, and
+        words search. The panel never decides which -- the kernel does,
+        and it is the kernel that is tested.
+        """
+        rows = self.pipeline.db.cards()
+        if order not in cards.ORDERS:
+            order = cards.ROW_MAJOR
+        text = (query or "").strip()
+        shown = cards.find(rows, text, order) if text else cards.walk(rows, order)
+        return {"ok": True,
+                "order": order,
+                "orders": list(cards.ORDERS),
+                "zones": list(cards.ZONES),
+                "total": len(rows),
+                "query": text,
+                "nextFree": cards.next_free(rows, order),
+                "cards": [dict(c) for c in shown]}
+
+    def cards_save(self, cell, title, body="", zone="GREEN", load=None):
+        """Write one card. The kernel validates; this does not soften it.
+
+        A rejected card reports WHY, naming the field. Swallowing the
+        error and saving something nearly right is how a grid fills up
+        with rows the owner did not mean.
+        """
+        now = self._now()
+        existing = self.pipeline.db.card_at(cell) if cards.is_cell(cell) else None
+        try:
+            card = cards.new_card(
+                cell, title, body, (existing or {}).get("created") or now,
+                zone=zone,
+                load=(int(load) if str(load).strip() not in ("", "None")
+                      else None))
+        except (ValueError, TypeError) as exc:
+            return {"ok": False, "bad": True, "message": str(exc)}
+        if existing:
+            card["updated"] = now
+        self.pipeline.db.save_card(card)
+        verb = "Updated" if existing else "Filed"
+        return {"ok": True,
+                "message": verb + " " + cards.describe(card),
+                "cell": card["cell"]}
+
+    def cards_around(self, cell):
+        """What sits next to a card. The gaps are reported too."""
+        if not cards.is_cell(cell):
+            return {"ok": False, "bad": True,
+                    "message": "Not a cell address: " + str(cell)}
+        rows = self.pipeline.db.cards()
+        near = cards.neighbours(rows, cell)
+        return {"ok": True,
+                "cell": cell.upper(),
+                "around": {d: (dict(c) if c else None)
+                           for d, c in near.items()}}
+
+    def cards_link(self, src, dst, relation):
+        """Join two cards. Both ends must already exist."""
+        try:
+            link = cards.new_link(src, dst, relation)
+        except (ValueError, TypeError) as exc:
+            return {"ok": False, "bad": True, "message": str(exc)}
+        for end in (link["src"], link["dst"]):
+            if self.pipeline.db.card_at(end) is None:
+                return {"ok": False, "bad": True,
+                        "message": "No card at " + end + " yet."}
+        self.pipeline.db.save_card_link(link)
+        return {"ok": True,
+                "message": (link["src"] + " " + link["relation"] + " "
+                            + link["dst"] + "."),
+                "relations": list(cards.RELATIONS)}
+
+
     # --- conversation -----------------------------------------------------
     def send(self, text):
         """Run one message through the engine. Blocking; called off the UI."""

@@ -98,6 +98,10 @@ its cell, so an answer can point you straight at H5.">
     <input type="checkbox" id="src-cards">
     <span aria-hidden="true">🗂</span>&nbsp;Note cards
   </label>
+  <button id="cards-open" class="ctl" type="button" aria-expanded="false"
+          aria-controls="cards-panel">
+    <span aria-hidden="true">🗂</span> Cards
+  </button>
   <button id="upload" class="ctl" type="button">
     <span aria-hidden="true">📎</span> Upload document
   </button>
@@ -127,6 +131,52 @@ its cell, so an answer can point you straight at H5.">
     <button id="fx-skip" class="ctl" type="button">Skip</button>
     <output id="fx-said" class="size" aria-live="polite"></output>
   </div>
+</section>
+
+<!-- The note-card grid. A drawer like the focus report: bounded, and
+     collapsed to nothing while hidden, so the transcript never loses its
+     room to it. The panel DRAWS what the bridge hands it and computes no
+     address of its own -- the kernel owns the grid rules and the kernel
+     is what is tested. -->
+<section id="cards-panel" class="cards" aria-label="Note cards" hidden>
+  <div class="cd-row">
+    <label class="sr" for="cd-q">Search by cell or words</label>
+    <input type="text" id="cd-q" class="cd-in"
+           placeholder="H5 to jump, or words to search">
+    <button id="cd-go" class="ctl" type="button">Search</button>
+    <button id="cd-all" class="ctl" type="button">Show all</button>
+    <span class="spacer"></span>
+    <button id="cd-order" class="ctl" type="button"
+            title="Row-first reads across then down. Column-first reads down then across. Same cards, different neighbours side by side.">
+      Reading: across
+    </button>
+  </div>
+
+  <div id="cd-list" class="cd-list" role="list"></div>
+
+  <details id="cd-new" class="cd-new">
+    <summary>File a card</summary>
+    <div class="cd-row">
+      <label class="lbl" for="cd-cell">Cell</label>
+      <input type="text" id="cd-cell" class="cd-in cd-cell" size="5">
+      <label class="lbl" for="cd-title">Title</label>
+      <input type="text" id="cd-title" class="cd-in">
+    </div>
+    <div class="cd-row">
+      <label class="sr" for="cd-body">Body</label>
+      <textarea id="cd-body" class="cd-in" rows="3"
+                placeholder="What you want to remember"></textarea>
+    </div>
+    <div class="cd-row">
+      <label class="lbl" for="cd-zone">Zone</label>
+      <select id="cd-zone" class="ctl"></select>
+      <label class="lbl" for="cd-load">Load</label>
+      <input type="number" id="cd-load" class="cd-in cd-cell" min="1" max="10">
+      <span class="spacer"></span>
+      <button id="cd-save" class="ctl" type="button">File it</button>
+      <output id="cd-said" class="size" aria-live="polite"></output>
+    </div>
+  </details>
 </section>
 
 <div class="modes" role="radiogroup" aria-label="Operating mode">

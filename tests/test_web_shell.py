@@ -627,3 +627,78 @@ class NoteCardShellTests(unittest.TestCase):
         """
         self.assertNotIn("cards_context", self.js)
         self.assertNotIn("card_rows", self.js)
+
+
+class CardPanelShellTests(unittest.TestCase):
+    """The note-card drawer, as the shipped shell carries it."""
+
+    def setUp(self):
+        self.html = read(HTML_PATH)
+        self.js = read(JS_PATH)
+        self.css = read(CSS_PATH)
+
+    def test_every_control_exists(self):
+        for ident in ("cards-open", "cards-panel", "cd-q", "cd-go", "cd-all",
+                      "cd-order", "cd-list", "cd-new", "cd-cell", "cd-title",
+                      "cd-body", "cd-zone", "cd-load", "cd-save", "cd-said"):
+            with self.subTest(control=ident):
+                self.assertIn(f'id="{ident}"', self.html)
+
+    def test_the_drawer_declares_what_it_controls(self):
+        self.assertIn('aria-controls="cards-panel"', self.html)
+
+    def test_the_result_line_announces_itself(self):
+        block = self.html.split('id="cd-said"')[1][:120]
+        self.assertIn('aria-live="polite"', block)
+
+    def test_the_inputs_are_labelled(self):
+        for ident in ("cd-q", "cd-cell", "cd-title", "cd-body", "cd-zone",
+                      "cd-load"):
+            with self.subTest(control=ident):
+                self.assertIn(f'for="{ident}"', self.html)
+
+    def test_a_card_row_is_a_real_button(self):
+        body = self.js.split("function cdCard(")[1].split("\n}")[0]
+        self.assertIn("createElement('button')", body)
+        self.assertIn("aria-label", body)
+
+    def test_the_zone_is_carried_by_a_word_not_colour_alone(self):
+        # WCAG 1.4.1. The chip prints the zone name.
+        body = self.js.split("function cdCard(")[1].split("\n}")[0]
+        self.assertIn("'cd-zone'", body)
+        self.assertIn("c.zone", body)
+
+    def test_both_reading_orders_are_reachable(self):
+        self.assertIn("COLUMN_MAJOR", self.js)
+        self.assertIn("ROW_MAJOR", self.js)
+        self.assertIn("cd-order", self.js)
+
+    def test_the_page_computes_no_address_of_its_own(self):
+        """The grid rules belong to the kernel.
+
+        An address worked out in the page would be a second copy of a
+        rule the kernel already owns and tests -- and the copy in the
+        page would be the untested one.
+        """
+        for forbidden in ("charCodeAt", "fromCharCode", "nextFree =",
+                          ".sort("):
+            with self.subTest(pattern=forbidden):
+                self.assertNotIn(forbidden, self.js)
+
+    def test_one_form_both_files_and_edits(self):
+        # Two forms would be two places for the same rule to drift.
+        body = self.js.split("async function cdOpen(")[1].split("\n}")[0]
+        self.assertIn("cd-cell", body)
+        self.assertIn("cd-title", body)
+
+    def test_a_rejected_card_reports_why(self):
+        body = self.js.split("async function cdSave(")[1].split("\n}")[0]
+        self.assertIn("r.message", body)
+        self.assertIn("if (!r.ok) return;", body)
+
+    def test_the_next_free_cell_is_offered(self):
+        self.assertIn("nextFree", self.js)
+
+    def test_the_panel_introduces_no_new_colour(self):
+        rules = self.css.split("--- note cards")[1]
+        self.assertNotRegex(rules, r"#[0-9A-Fa-f]{3,8}")

@@ -12,6 +12,37 @@ root cause and the guard.
 
 ## [Unreleased]
 
+### Added — the note-card panel (2026-11-27)
+
+The grid is now something the owner can see and write, not only ask
+about. **🗂 Cards** opens a drawer beside the other source controls.
+
+- **One box, two jobs.** `H5` jumps, words search, empty shows the whole
+  grid. The panel never decides which — `cards.find()` does, and that is
+  what the tests cover.
+- **Reading: across / down** toggles the traversal. Verified end to end:
+  the same three cards come back `A1, B1, A2` one way and `A1, A2, B1`
+  the other.
+- **The next free cell is offered** as the placeholder, and it follows
+  the reading order — `C1` across, `A3` down. The question behind "is H5
+  taken" is usually "where do I put this".
+- **One form files and edits.** Clicking a card loads it into the form
+  and names what sits around it. Two forms would be two places for the
+  same rule to drift.
+- **A rejected card says why, naming the field** — *a card needs a
+  title*, *load must be 1 to 10*, *a cell is a letter and 1-3 digits*.
+  Swallowing the error and saving something nearly right is how a grid
+  fills with rows the owner did not mean.
+- Each row is a real `<button>` with an `aria-label`, and the zone is
+  printed as a **word**, never carried by colour alone (WCAG 1.4.1).
+
+**12 shell tests.** One asserts the page computes no address of its own
+— no `charCodeAt`, no `fromCharCode`, no sort — because an address worked
+out in the page would be a second copy of a rule the kernel already owns,
+and the copy in the page would be the untested one. The panel introduces
+no new colour, so the existing contrast audit still covers every pair.
+
+Suite: **620 passing.**
 ### Added — note cards on the A1 grid, ported from the browser (2026-11-27)
 
 The feature was built in the published browser page and the laptop
