@@ -382,3 +382,69 @@ class StoreTests(unittest.TestCase):
         self.db.save_card(card("B1"))
         self.assertEqual(
             cards.next_free(self.db.cards(), cards.ROW_MAJOR), "C1")
+
+
+class RetrievalTests(unittest.TestCase):
+    """What actually reaches the local model."""
+
+    def setUp(self):
+        from strata_tools import context_sources
+        self.cs = context_sources
+        self.rows = [
+            card("H5", "The box model", "padding border margin"),
+            card("A1", "Flexbox", "a box that flexes"),
+            card("B2", "Specificity", "ids beat classes"),
+        ]
+
+    def test_every_passage_is_named_by_its_address(self):
+        """So an answer can say "H5 says" and he can go straight there.
+
+        A passage quoted without a coordinate is one he has to hunt for,
+        which is the failure the grid exists to prevent.
+        """
+        out = self.cs.cards_context("box model", self.rows)
+        self.assertIn("[H5]", out)
+        self.assertIn("The box model", out)
+
+    def test_the_most_relevant_card_comes_first(self):
+        out = self.cs.cards_context("box model", self.rows)
+        self.assertLess(out.index("[H5]"), out.index("[A1]"))
+
+    def test_an_address_query_reaches_exactly_that_card(self):
+        out = self.cs.cards_context("B2", self.rows)
+        self.assertIn("[B2]", out)
+        self.assertNotIn("[H5]", out)
+
+    def test_no_match_costs_the_context_window_nothing(self):
+        self.assertEqual(self.cs.cards_context("quantum tunnelling", self.rows), "")
+
+    def test_an_empty_grid_is_silent(self):
+        self.assertEqual(self.cs.cards_context("anything", []), "")
+        self.assertEqual(self.cs.cards_context("anything", None), "")
+
+    def test_the_passage_count_is_bounded(self):
+        # A 3B model has a 2048-token window. Handing it forty cards
+        # would push the question itself out of context.
+        many = [card(f"A{i}", f"Card {i}", "box") for i in range(1, 20)]
+        out = self.cs.cards_context("box", many)
+        self.assertLessEqual(out.count("["), 4)
+
+    def test_gather_includes_cards_only_when_asked(self):
+        with_cards = self.cs.gather("box model", card_rows=self.rows,
+                                    use_cards=True)
+        without = self.cs.gather("box model", card_rows=self.rows,
+                                 use_cards=False)
+        self.assertIn("[H5]", with_cards)
+        self.assertEqual(without, "")
+
+    def test_cards_outrank_the_web_in_the_prompt(self):
+        """His own notes come before anything fetched.
+
+        Ordering is not cosmetic: a small model weights what it reads
+        first, and the card he wrote by hand is better evidence about
+        his own work than a search result.
+        """
+        out = self.cs.gather("box model", card_rows=self.rows,
+                             use_cards=True,
+                             web_text="WEB: some search result")
+        self.assertLess(out.index("[H5]"), out.index("WEB:"))

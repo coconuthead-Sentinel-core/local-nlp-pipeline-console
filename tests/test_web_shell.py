@@ -594,3 +594,36 @@ class KeyboardReachTests(unittest.TestCase):
 
     def test_the_stats_control_is_a_real_button(self):
         self.assertIn('<button id="fx-stats"', self.html)
+
+
+class NoteCardShellTests(unittest.TestCase):
+    """The note-card source, as the shipped shell carries it."""
+
+    def setUp(self):
+        self.html = read(HTML_PATH)
+        self.js = read(JS_PATH)
+
+    def test_the_source_is_a_real_checkbox(self):
+        self.assertIn('type="checkbox" id="src-cards"', self.html)
+
+    def test_it_is_labelled(self):
+        self.assertIn('for="src-cards"', self.html)
+        self.assertIn("Note cards", self.html)
+
+    def test_it_reaches_the_bridge(self):
+        self.assertIn("set_source('cards'", self.js)
+
+    def test_the_tick_survives_a_reload(self):
+        # Source state lives on the bridge so a reload finds the boxes
+        # as they were left -- the same contract the other two keep.
+        self.assertIn("src-cards').checked", self.js)
+
+    def test_the_page_never_holds_the_card_text(self):
+        """Cards are searched engine-side, like every other source.
+
+        A page holding the grid would be a second copy that can drift
+        from the database, and the retrieval rule would then live in two
+        places with only one of them tested.
+        """
+        self.assertNotIn("cards_context", self.js)
+        self.assertNotIn("card_rows", self.js)

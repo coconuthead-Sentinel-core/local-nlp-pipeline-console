@@ -553,6 +553,7 @@ async function boot() {
   const src = s.sources || {};
   $('src-web').checked = !!src.web;
   $('src-onedrive').checked = !!src.onedrive;
+  $('src-cards').checked = !!src.cards;
   showAttachment(s.attachment);
 
   /* The open cycle lives on the bridge too, so a reload mid-cycle finds
@@ -867,6 +868,10 @@ document.addEventListener('DOMContentLoaded', () => {
       : '🌐 Web search off. Saying "look this up" still works for one message.');
   });
 
+  $('src-cards').addEventListener('change', async (e) => {
+    if (!api) return;
+    await api.set_source('cards', e.target.checked);
+  });
   $('src-onedrive').addEventListener('change', async (e) => {
     if (!api) return;
     /* Switching this on starts the index build; the note telling him

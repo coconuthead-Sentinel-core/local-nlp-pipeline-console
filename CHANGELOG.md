@@ -12,6 +12,62 @@ root cause and the guard.
 
 ## [Unreleased]
 
+### Added — note cards on the A1 grid, ported from the browser (2026-11-27)
+
+The feature was built in the published browser page and the laptop
+never got it. The reason is worth keeping: the only thing that ever
+reached this repository was `strata_console_browser.html`, a **snapshot**
+of that page. A snapshot is a record, not code — it documented the
+feature perfectly and shipped nothing.
+
+- **[`strata_tools/cards.py`](strata_tools/cards.py)** — the kernel. A
+  card is a short note with an **address**: `H5`, `A1`, `Z999`. The
+  address is the point: a title can be forgotten and a search can miss,
+  but a coordinate can be said out loud, written on paper, and typed the
+  same way twice. The pattern is **copied** from the browser build, not
+  improved, so a card written there still reads here.
+- **Both reading directions**, which are real features rather than
+  decoration. Row-major reads `A1, B1, C1` then drops down; column-major
+  reads `A1, A2, A3` then moves across. The same cards in a different
+  order put different neighbours side by side, which is the whole reason
+  to use a grid instead of a list. A test fails if the two orders ever
+  agree on a non-trivial grid.
+- `neighbours()` reports the four adjacent cards **and the gaps** — the
+  gaps are the useful half. `next_free()` so a card can be filed without
+  remembering what is taken. `find()` takes one box and forks it: an
+  address jumps, words search.
+- **The store** on `StrataDB`. The cell is `UNIQUE` and a second save
+  updates by address, because two cards at `H5` would make "go to H5"
+  ambiguous and defeat the point. `delete_card()` exists **only to
+  refuse**, by name, so the absence is a decision a reader can find
+  rather than a gap they assume is an oversight.
+- **The assistant can read them.** `🗂 Note cards` joins 🌐 and ☁ as a
+  context source. Each passage is **named by its address**, so an answer
+  can say "H5 says" and the owner goes straight there — a passage quoted
+  without a coordinate is one he has to hunt for. Cards rank **second
+  only to the file just handed over**: they are his own curated notes and
+  outrank anything indexed months ago or fetched from the web. The grid
+  is read from the store each turn, so a card written a moment ago is
+  findable in the very next message.
+- **`/cards`** lists the grid; `/cards down` reads it column-first;
+  `/cards H5` reads one card and names what sits around it; an empty
+  address reports the next free cell instead of just failing.
+
+**62 kernel and store tests, 5 shell tests.** Two bugs in the kernel were
+caught by its own tests before anything was wired: `str(None)` is the
+truthy four-character string `"None"`, so a missing title would have
+filed a card literally named None; and `walk()` left its order check to
+the sort key, which `sorted()` never calls on an empty list — a
+misspelled order passed silently and would have failed only once the
+owner had cards.
+
+**What did not come over, and why it is the engine and not effort:**
+images (llama3.2:3b has no image input), the 🌐 Exa and ☁ Google Drive
+sources (those are the viewer's own claude.ai connectors, not endpoints a
+local app may call), and the behavioural overlays and 45-cell interaction
+matrix (they condition a frontier model on nine simultaneous constraints;
+a 3B model cannot act on them). Roughly two thirds of the browser build
+transfers; the dividing line is always the same.
 ### Changed — the browser snapshot is now a repo-side build, not an Artifact mirror (2026-11-25)
 
 The Prompt Library (PR #2) was written against the **108,563-byte**

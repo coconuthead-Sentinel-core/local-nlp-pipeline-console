@@ -19,6 +19,7 @@ keeping them out is what makes the rest testable.
 """
 from __future__ import annotations
 
+from . import cards
 from .retrieval import retrieve_from_index, retrieve_from_text
 
 # Asking Strata to search should simply work. The owner types "look this
@@ -96,8 +97,35 @@ def onedrive_context(query: str, index) -> str:
     return retrieve_from_index(query, index)
 
 
+def cards_context(query: str, card_rows, limit: int = 4) -> str:
+    """Passages from the owner's own note cards.
+
+    The cards are his: written by hand, addressed, and kept. They
+    outrank a web result and a file indexed months ago, and they are the
+    one source where a MISS is expensive -- if the console cannot find
+    the card he wrote about this exact thing, the grid has failed at the
+    only job it has.
+
+    Each hit is named by its ADDRESS, so an answer can say "H5 says" and
+    he can go straight there. A passage quoted without a coordinate is a
+    passage he has to hunt for.
+    """
+    if not card_rows:
+        return ""
+    hits = cards.find(card_rows, query)[:limit]
+    if not hits:
+        return ""
+    out = ["The user's own note cards, most relevant first:"]
+    for card in hits:
+        body = (card.get("body") or "").strip()
+        line = f'[{card.get("cell")}] {card.get("title")}'
+        out.append(line + (f" -- {body}" if body else ""))
+    return "\n".join(out)
+
+
 def gather(query: str, attachment=None, onedrive_index=None,
-           use_onedrive: bool = False, web_text: str = "") -> str:
+           use_onedrive: bool = False, web_text: str = "",
+           card_rows=None, use_cards: bool = False) -> str:
     """Compose one turn's grounding text. Pure.
 
     ``web_text`` arrives already fetched -- this module does not touch
@@ -107,6 +135,11 @@ def gather(query: str, attachment=None, onedrive_index=None,
     themselves, so an unticked box costs the context window nothing.
     """
     parts = [attachment_context(query, attachment)]
+    # Cards come second, behind only the file just handed over: they are
+    # the owner's own curated notes, and they outrank anything indexed
+    # months ago or fetched from the open web.
+    if use_cards:
+        parts.append(cards_context(query, card_rows))
     if use_onedrive:
         parts.append(onedrive_context(query, onedrive_index))
     parts.append(web_text or "")

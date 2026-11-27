@@ -38,7 +38,7 @@ import time
 import webview
 
 from strata_core import ALL_GLYPHS, StrataPipeline
-from strata_tools import (codex, commands, context_sources, dictation,
+from strata_tools import (cards, codex, commands, context_sources, dictation,
                           single_instance,
                           focus,
                           session,
@@ -84,7 +84,7 @@ class Api:
         # State lives on the bridge, not in the page, so it survives a
         # reload and so the rule deciding what the model reads stays in
         # one testable place (strata_tools/context_sources.py).
-        self._sources = {"web": False, "onedrive": False}
+        self._sources = {"web": False, "onedrive": False, "cards": False}
         self._attachment = None
         self._onedrive_index = None      # None = never built / building
         self._onedrive_building = False
@@ -397,6 +397,52 @@ class Api:
             out["handled"] = True
             out["clearLog"] = True
             return out
+
+        if name == "cards":
+            argument = (parsed["argument"] or "").strip()
+            rows = self.pipeline.db.cards()
+            if not rows:
+                return {"ok": True, "handled": True, "markdown": True,
+                        "message": ("No cards yet. The grid files notes by "
+                                    "address -- H5, A1 -- so a note can be "
+                                    "found by a coordinate you can say out "
+                                    "loud.")}
+            # "down" reads a column at a time, "across" a row at a time.
+            # Same cards, different neighbours side by side, which is the
+            # reason to use a grid instead of a list.
+            downward = argument.lower() in ("down", "column", "col")
+            order = cards.COLUMN_MAJOR if downward else cards.ROW_MAJOR
+            if argument and cards.is_cell(argument):
+                hit = self.pipeline.db.card_at(argument)
+                if not hit:
+                    free = cards.next_free(rows)
+                    return {"ok": True, "handled": True, "bad": True,
+                            "message": ("Nothing filed at "
+                                        + argument.upper()
+                                        + ". Next free cell is "
+                                        + str(free) + ".")}
+                near = cards.neighbours(rows, hit["cell"])
+                body = hit.get("body") or "_(no body)_"
+                out = ["### " + cards.describe(hit), "", body, ""]
+                around = [d + ": " + cards.describe(c)
+                          for d, c in near.items() if c]
+                if around:
+                    out.append("**Around it**")
+                    out.extend("- " + a for a in around)
+                return {"ok": True, "handled": True, "markdown": True,
+                        "message": nl_join(out)}
+            walked = cards.walk(rows, order)
+            how = "column-first" if downward else "row-first"
+            other = "across" if downward else "down"
+            out = ["### " + str(len(walked)) + " cards, read " + how, ""]
+            out.extend("- " + cards.describe(c) for c in walked[:40])
+            if len(walked) > 40:
+                out.append("- ...and " + str(len(walked) - 40) + " more")
+            out.append("")
+            out.append("`/cards H5` reads one. `/cards " + other
+                       + "` reads the other way.")
+            return {"ok": True, "handled": True, "markdown": True,
+                    "message": nl_join(out)}
 
         if name == "focus":
             argument = (parsed["argument"] or "").strip().lower()
@@ -717,11 +763,20 @@ class Api:
         extra = context_sources.gather(
             text, attachment=self._attachment,
             onedrive_index=self._onedrive_index,
-            use_onedrive=use_onedrive, web_text=web_text)
+            use_onedrive=use_onedrive, web_text=web_text,
+            # Read from the store each turn rather than cached on the
+            # bridge: a card written a moment ago in the panel must be
+            # findable in the very next message, or the grid is a
+            # filing cabinet the assistant cannot see into.
+            card_rows=(self.pipeline.db.cards()
+                       if self._sources["cards"] else None),
+            use_cards=self._sources["cards"])
 
         used = []
         if self._attachment:
             used.append("📎 " + self._attachment["name"])
+        if self._sources["cards"]:
+            used.append("🗂 note cards")
         if use_onedrive:
             used.append("☁ OneDrive")
         if use_web:
